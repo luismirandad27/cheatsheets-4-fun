@@ -45,7 +45,7 @@ from pyspark.sql import Row
 ```
 
 ###### Convert List of List to Data Frame
-```python=
+```python
 lst_users = [[1,'Scoot'],[2,'Ronald'],[3,'Mathew']]
 rows_user = [Row(*user) for user in lst_users]
 spark.createDataFrame(rows_user,'user_id int, user_name string')
@@ -53,7 +53,7 @@ spark.createDataFrame(rows_user,'user_id int, user_name string')
 ```
 
 ###### Convert List of Tuples to Data Frame
-```python=
+```python
 lst_users = [(1,'Scoot'),(2,'Ronald'),(3,'Mathew')]
 rows_user = [Row(*user) for user in lst_users]
 spark.createDataFrame(rows_user,'user_id int, user_name string')
@@ -61,7 +61,7 @@ spark.createDataFrame(rows_user,'user_id int, user_name string')
 ```
 
 ###### Convert List of Dicts to Data Frame
-```python=
+```python
 lst_users = [
     {'user_id':1, 'user_name':'luismi'},
     {'user_id':2, 'user_name':'miranda'},
@@ -73,7 +73,7 @@ spark.createDataFrame(rows_user)
 
 ##### 4. Pyspark Data Types
 ###### Defining a list of dictionaries
-```python=
+```python
 import datetime
 
 users = [
@@ -100,19 +100,19 @@ users = [
 ]
 ```
 ###### Creating Data Frame
-```python=
+```python
 users_df = spark.createDataFrame([Row(**user) for user in users])
 ```
 ###### Showing the data structure
-```python=
+```python
 users_df.printSchema()
 ```
 ###### Showing first N rows
-```python=
+```python
 users_df.show()
 ```
 ###### Showing columns and data types
-```python=
+```python
 users_df.columns
 #['id','first_name','last_name','email','is_customer','amount_paid','customer_from','last_updated_ts']
 users_df.dtypes
@@ -130,7 +130,7 @@ users_df.dtypes
 '''
 ```
 ###### Specifying Schema of Data Frame (I)
-```python=
+```python
 user_schema = '''
     id INT,
     first_name STRING,
@@ -146,7 +146,7 @@ spark.createDataFrame(users,user_schema)
 spark.createDataFrame(users,schema = user_schema)
 ```
 ###### Specifying Schema of Data Frame (II)
-```python=
+```python
 from pyspark.sql.types import *
 
 user_schema = StructType([
@@ -164,7 +164,7 @@ spark.createDataFrame(users,schema = user_schema)
 
 ##### 5. Creating Data Frame with Pandas
 ###### Defining a List of dictionaries
-```python=
+```python
 import datetime
 
 users = [
@@ -191,7 +191,7 @@ users = [
 ]
 ```
 ###### Creating Data Frame with Pandas
-```python=
+```python
 import pandas as pd
 users_df = spark.createDataFrame(pd.DataFrame(users))
 ```
@@ -202,7 +202,7 @@ users_df = spark.createDataFrame(pd.DataFrame(users))
 
 ###### Array data type
 
-```python=
+```python
 import datetime
 
 users = [
@@ -230,7 +230,7 @@ users_df.dtypes
 ```
 
 ###### Array Type: Using explode/explode_outer
-```python=
+```python
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
@@ -255,7 +255,7 @@ users_df.\
 ```
 
 ###### Map Type
-```python=
+```python
 import datetime
 
 users = [
@@ -284,7 +284,7 @@ users_df.dtypes
 ```
 
 ###### Map Type: Using explode/explode_outer
-```python=
+```python
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
@@ -311,7 +311,7 @@ users_df.\
 ```
 
 ###### Struct Type
-```python=
+```python
 import datetime
 
 users = [
@@ -340,7 +340,7 @@ users_df.dtypes
 ```
 
 ###### Struct Type: Using col (explode and explode_outer cannot be used)
-```python=
+```python
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
