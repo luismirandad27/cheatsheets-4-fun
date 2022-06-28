@@ -1,23 +1,24 @@
 # Pyspark Cheatsheet
-## The Basics: Creating Data Frames
 
-##### 1. Creating a Data Frame from List
+## Creation of a Pyspark Data Frame
 
-###### From Integer List
+### 1. Creating a Data Frame from List
+
+#### From Integer List
 ```python
 #Defining a list with integer elements
 lst_ages = [10,12,13,14]
 #Creating df based on the integer list
 df = spark.createDataFrame(lst_ages,"int")
 ```
-###### From String List
+#### From String List
 ```python
 #Defining a list with string elements
 lst_names = ["luis","miguel","miranda"]
 #Creating df based on the integer list
 df = spark.createDataFrame(lst_names,"string")
 ```
-###### Using Pyspark Data Types
+#### Using Pyspark Data Types
 ```python
 #Importing pyspark data types library
 from pyspark.sql.types import StringType,IntegerType
@@ -25,7 +26,7 @@ from pyspark.sql.types import StringType,IntegerType
 df_ages = spark.createDataFrame(lst_ages,IntegerType())
 df_names = spark.createDataFrame(lst_names,StringType())
 ```
-##### 2. Creating a Multi-Column Data Frame using List
+### 2. Creating a Multi-Column Data Frame using List
 ```python
 lst_ages_mc = [(12,),(24,),(10,)]
 
@@ -38,13 +39,13 @@ lst_users = [(1,'Scoot'),(2,'Donald'),(3,'Mickey')]
 df_users = spark.createDataFrame(lst_users,"user_id int, user_name string")
 ```
 
-##### 3. Creating Data Frame using Pyspark Row
+### 3. Creating Data Frame using Pyspark `Row`
 ```python
 #Importing Pyspark Row
 from pyspark.sql import Row
 ```
 
-###### Convert List of List to Data Frame
+#### Convert List of List to Data Frame
 ```python
 lst_users = [[1,'Scoot'],[2,'Ronald'],[3,'Mathew']]
 rows_user = [Row(*user) for user in lst_users]
@@ -52,7 +53,7 @@ spark.createDataFrame(rows_user,'user_id int, user_name string')
 ##C: DataFrame[user_id: int, user_name: string]
 ```
 
-###### Convert List of Tuples to Data Frame
+#### Convert List of Tuples to Data Frame
 ```python
 lst_users = [(1,'Scoot'),(2,'Ronald'),(3,'Mathew')]
 rows_user = [Row(*user) for user in lst_users]
@@ -60,7 +61,7 @@ spark.createDataFrame(rows_user,'user_id int, user_name string')
 ##C: DataFrame[user_id: int, user_name: string]
 ```
 
-###### Convert List of Dicts to Data Frame
+#### Convert List of Dicts to Data Frame
 ```python
 lst_users = [
     {'user_id':1, 'user_name':'luismi'},
@@ -71,8 +72,8 @@ rows_user = [Row(**user) for user in lst_users]
 spark.createDataFrame(rows_user)
 ```
 
-##### 4. Pyspark Data Types
-###### Defining a list of dictionaries
+### 4. Pyspark Data Types
+#### Defining a list of dictionaries
 ```python
 import datetime
 
@@ -99,19 +100,19 @@ users = [
     }
 ]
 ```
-###### Creating Data Frame
+#### Creating Data Frame
 ```python
 users_df = spark.createDataFrame([Row(**user) for user in users])
 ```
-###### Showing the data structure
+#### Showing the data structure
 ```python
 users_df.printSchema()
 ```
-###### Showing first N rows
+#### Showing first N rows
 ```python
 users_df.show()
 ```
-###### Showing columns and data types
+#### Showing columns and data types
 ```python
 users_df.columns
 #['id','first_name','last_name','email','is_customer','amount_paid','customer_from','last_updated_ts']
@@ -129,7 +130,7 @@ users_df.dtypes
     ]
 '''
 ```
-###### Specifying Schema of Data Frame (I)
+#### Specifying Schema of Data Frame (I)
 ```python
 user_schema = '''
     id INT,
@@ -145,7 +146,22 @@ spark.createDataFrame(users,user_schema)
 #or
 spark.createDataFrame(users,schema = user_schema)
 ```
-###### Specifying Schema of Data Frame (II)
+#### Specifying Schema of Data Frame (II)
+Before dealing with `StructType`, let's the list of data types offers by Pyspark:
+
+|          |          |
+| -------- | -------- |
+| StringType     | ShortType     |
+| ArrayType     | IntegerType     |
+| MapType     | LongType     |
+| StructType     | FloatType     |
+| DateType     | DoubleType     |
+| TimestampType     | DecimalType     |
+| BooleanType     | ByteType     |
+| CalendarIntervalType     | HiveStringType     |
+| BinaryType     | ObjectType     |
+| NumericType     | NullType     |
+
 ```python
 from pyspark.sql.types import *
 
@@ -162,8 +178,8 @@ user_schema = StructType([
 spark.createDataFrame(users,schema = user_schema)
 ```
 
-##### 5. Creating Data Frame with Pandas
-###### Defining a List of dictionaries
+### 5. Creating Data Frame with Pandas
+#### Defining a List of dictionaries
 ```python
 import datetime
 
@@ -190,17 +206,17 @@ users = [
     }
 ]
 ```
-###### Creating Data Frame with Pandas
+#### Creating Data Frame with Pandas
 ```python
 import pandas as pd
 users_df = spark.createDataFrame(pd.DataFrame(users))
 ```
 
-##### 6. Special Data Types
+### 6. Special Data Types
 - Special Types: Array, Struct, Map
 - List and Dicts can be implicitly converted to Spark ARRAY and MAP respectively
 
-###### Array data type
+#### `Array` data type
 
 ```python
 import datetime
@@ -229,7 +245,7 @@ users_df.dtypes
 '''
 ```
 
-###### Array Type: Using explode/explode_outer
+#### `Array` Type: Using `explode` and `explode_outer`
 ```python
 #Using explode and explode_outer
 from pyspark.sql.functions import col
@@ -254,7 +270,7 @@ users_df.\
     show()
 ```
 
-###### Map Type
+#### `Map` Type
 ```python
 import datetime
 
@@ -283,7 +299,7 @@ users_df.dtypes
 '''
 ```
 
-###### Map Type: Using explode/explode_outer
+#### `Map` Type: Using `explode` and `explode_outer`
 ```python
 #Using explode and explode_outer
 from pyspark.sql.functions import col
@@ -310,7 +326,7 @@ users_df.\
     show()
 ```
 
-###### Struct Type
+#### `Struct` Type
 ```python
 import datetime
 
@@ -339,7 +355,7 @@ users_df.dtypes
 '''
 ```
 
-###### Struct Type: Using col (explode and explode_outer cannot be used)
+#### `Struct` Type: Using `col` (`explode` and `explode_outer` cannot be used)
 ```python
 #Using explode and explode_outer
 from pyspark.sql.functions import col
@@ -359,3 +375,53 @@ users_df.\
     select('id',col('phone_numbers')['mobile'].alias('mobile'),col('phone_numbers')['home'].alias('home')).\
     show()
 ```
+
+---
+## Select and Rename
+###### Creating Data Frame
+```python
+import datetime
+import pandas as pd
+
+#Creating list of dictionaries
+gamers = [
+    {
+        "user_id":1,
+        "user_name":"Luis Miguel",
+        "user_lastname":"Miranda",
+        "contact_info":Row(mobile="+1 312 312 3132", home="+1 999 888 1233"),
+        "videogames":["fifa 22","pes 22"]
+    },
+    {
+        "user_id":2,
+        "user_name":"Mario Alonso",
+        "user_lastname":"Miranda",
+        "contact_info":Row(home="+1 999 888 1233"),
+        "videogames":["fifa 22","diablo immortal"]
+    }
+]
+```
+###### Disabling Apache Arrow in Pyspark for Pandas To/From Conversion
+```python
+spark.conf.set("spark.sql.execution.arrow.pyspark.enabled",False)
+```
+
+###### Creating DataFrame
+```python
+gamers_df = spark.createDataFrame(pd.DataFrame(gamers))
+```
+
+### Narrow/Wide Transformations
+
+Data structures are *immutable*, we cannot change them once created. The way we can modify this DataFrame is with *transformations*. There are 2 types:
+
+**Narrow Transformations**: doesn't result in *shuffling*. Than means that all the transformation is operating in the each partition (any data movement will not occur). Also, Spark will make a process called *pipelining*, that means that every narrow operation will be executed *in-memory*.
+
+**Wide Transformations**: result in *shuffling*. Means that, in the operation, many input partitions are being used to create different output partitions (writing on disk).
+
+###### Reference
+> Raju, D. Databricks Certified Associate Developer - Apache Spark 2022 [Online Course]. Udemy
+> https://www.udemy.com/course/databricks-certified-associate-developer-for-apache-spark/
+
+
+
