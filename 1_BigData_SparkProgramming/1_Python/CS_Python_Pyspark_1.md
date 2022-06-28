@@ -4,21 +4,21 @@
 ##### 1. Creating a Data Frame from List
 
 ###### From Integer List
-```python=
+```python
 #Defining a list with integer elements
 lst_ages = [10,12,13,14]
 #Creating df based on the integer list
 df = spark.createDataFrame(lst_ages,"int")
 ```
 ###### From String List
-```python=
+```python
 #Defining a list with string elements
 lst_names = ["luis","miguel","miranda"]
 #Creating df based on the integer list
 df = spark.createDataFrame(lst_names,"string")
 ```
 ###### Using Pyspark Data Types
-```python=
+```python
 #Importing pyspark data types library
 from pyspark.sql.types import StringType,IntegerType
 #Creating df based on the integer list
@@ -26,7 +26,7 @@ df_ages = spark.createDataFrame(lst_ages,IntegerType())
 df_names = spark.createDataFrame(lst_names,StringType())
 ```
 ##### 2. Creating a Multi-Column Data Frame using List
-```python=
+```python
 lst_ages_mc = [(12,),(24,),(10,)]
 
 df_ages = spark.createDataFrame(lst_ages_mc)
@@ -39,7 +39,7 @@ df_users = spark.createDataFrame(lst_users,"user_id int, user_name string")
 ```
 
 ##### 3. Creating Data Frame using Pyspark Row
-```python=
+```python
 #Importing Pyspark Row
 from pyspark.sql import Row
 ```
