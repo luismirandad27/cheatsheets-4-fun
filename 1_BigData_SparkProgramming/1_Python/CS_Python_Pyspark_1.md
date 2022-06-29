@@ -22,6 +22,8 @@ df = spark.createDataFrame(lst_names,"string")
 ```python
 #Importing pyspark data types library
 from pyspark.sql.types import StringType,IntegerType
+```
+```python
 #Creating df based on the integer list
 df_ages = spark.createDataFrame(lst_ages,IntegerType())
 df_names = spark.createDataFrame(lst_names,StringType())
@@ -76,7 +78,8 @@ spark.createDataFrame(rows_user)
 #### Defining a list of dictionaries
 ```python
 import datetime
-
+```
+```python
 users = [
     {
         "id": 1,
@@ -164,7 +167,8 @@ Before dealing with `StructType`, let's the list of data types offers by Pyspark
 
 ```python
 from pyspark.sql.types import *
-
+```
+```python
 user_schema = StructType([
     StructField('id',IntegerType()),
     StructField('first_name',StringType()),
@@ -182,7 +186,8 @@ spark.createDataFrame(users,schema = user_schema)
 #### Defining a List of dictionaries
 ```python
 import datetime
-
+```
+```python
 users = [
     {
         "id": 1,
@@ -209,6 +214,8 @@ users = [
 #### Creating Data Frame with Pandas
 ```python
 import pandas as pd
+```
+```python
 users_df = spark.createDataFrame(pd.DataFrame(users))
 ```
 
@@ -220,7 +227,8 @@ users_df = spark.createDataFrame(pd.DataFrame(users))
 
 ```python
 import datetime
-
+```
+```python
 users = [
     {
         "id":1,
@@ -250,7 +258,8 @@ users_df.dtypes
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
-
+```
+```python
 #using col
 
 users_df.\
@@ -270,7 +279,8 @@ users_df.\
 #### `Map` Type
 ```python
 import datetime
-
+```
+```python
 users = [
     {
         "id":1,
@@ -301,7 +311,8 @@ users_df.dtypes
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
-
+```
+```python
 #using col
 
 users_df.\
@@ -323,7 +334,8 @@ users_df.\
 #### `Struct` Type
 ```python
 import datetime
-
+```
+```python
 users = [
     {
         "id":1,
@@ -354,7 +366,8 @@ users_df.dtypes
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
-
+```
+```python
 #using col
 
 users_df.\
@@ -368,12 +381,13 @@ users_df.\
 ```
 
 ---
-## Selecting and Renaming DataFrames
+## Selecting and Renaming DataFrames <a name="introduction"></a>
 ###### Creating Data Frame
 ```python
 import datetime
 import pandas as pd
-
+```
+```python
 #Creating list of dictionaries
 gamers = [
     {
@@ -381,7 +395,10 @@ gamers = [
         "user_name":"Luis Miguel",
         "user_lastname":"Miranda",
         "contact_info":Row(mobile="+1 312 312 3132", home="+1 999 888 1233"),
-        "videogames":["fifa 22","pes 22"]
+        "videogames":["fifa 22","pes 22"],
+        "birth_date":datetime.date(1993,3,1),
+        "last_update":datetime.datetime(2021,2,10,1,14,0),
+        "total_amount":100.10
     },
     {
         "user_id":2,
@@ -389,6 +406,9 @@ gamers = [
         "user_lastname":"Miranda",
         "contact_info":Row(home="+1 999 888 1233"),
         "videogames":["fifa 22","diablo immortal"]
+        "birth_date":datetime.date(2000,6,27),
+        "last_update":datetime.datetime(2021,2,10,1,14,0),
+        "total_amount":999.21
     }
 ]
 ```
@@ -435,6 +455,10 @@ gamers_df.select('user_id','user_name','user_lastname')
 
 #Selecting specific columns of the df as a list
 gamers_df.select(['user_id','user_name','user_lastname'])
+#or (using * to retrieve the elements)
+cols = ['user_id','user_name','user_lastname']
+gamers_df.select(*cols)
+
 
 #Selecting specific columns using Pyspark DataFrame Columns
 gamers_df.select(gamers_df['user_id'],gamers_df['user_name'],gamers_df['user_lastname'])
@@ -457,7 +481,8 @@ gamers_df.alias('g').select('g.user_id',g['user_name'],col('user_lastname'))
 #### `concat` and `lit` functions
 ```python
 from pyspark.sql.functions import concat, lit
-
+```
+```python
 gamers_df.select(
     col('user_id'),
     concat(col('user_name'),lit(', '),col('user_lastname')).alias('full_name')
@@ -470,6 +495,20 @@ gamers_df.select(
 )
 ```
 
+#### More about `lit` function (type Pyspark Object Column)
+```python
+gamers_df.select('total_amount'+25) #ERROR: not same type
+
+gamers_df.select('total_amount'+'25') #ERROR: there isn´t any column called total_amount25
+
+gamers_df.select('user_id','total_amount'+lit(2.0),lit(2.0)+lit(2.0))
+# 1 | Null | 4.0
+# 2 | Null | 4.0
+# Null result because Spark cannot performe arithmetics operation on noncompatible types
+
+#Right Way
+gamers_df.select(col('total_amount') + lit(2.0)) #same type
+```
 #### `selectExpr` function
 ```python
 #selectExpr works (in some cases like select function)
@@ -483,21 +522,99 @@ gamers_df.selectExpr(
     'user_id',
     "concat(user_name,', ',user_lastname) AS full_name"    
 )
-```
 
-#### `createOrReplaceTempView` and `spark.sql`
+gamers_df.alias('g').selectExpr(
+    'g.user_id',
+    "concat(g.user_name,', ',g.user_lastname) AS full_name"    
+)
+```
+#### `col` function
 ```python
-#Creating a temporary view that can be query by an spark.sql statement
-gamers_df.createOrReplaceTempView('gamers_view')
-
-#Using spark.sql to make a select statement
-spark.sql("""
-    SELECT user_id, user_name, user_lastname,
-           concat(user_name,', ',user_lastname) as user_fullname
-    FROM gamers_view
-""")
+#making select from a list
+user_id = col('user_id') #Column<user_id>
+gamers_df.select(user_id)
 ```
 
+#### `date_format` function 
+```python
+from pyspark.sql.functions import date_format
+```
+```python
+gamers_df.select(date_format('birth_date','yyyyMMdd').alias('birthdate_formatted'))
+#birth_date_formatted: 19930301 (for user 1)
+```
+#### `cast` function 
+```python
+from pyspark.sql.functions import cast
+```
+```python
+#Casting a date to integer number
+gamers_df.select(date_format('birth_date','yyyyMMdd').cast('int').alias('birthdate_cast'))
+#birth_date_formatted: 20210114
+
+#For example: using Spark Column Object
+birthdate_cast = date_format('birth_date','yyyyMMdd').cast('int').alias('birthdate_cast')
+gamers_df.select(birthdate_cast)
+```
+
+### 2. Renaming Pyspark DataFrame Columns (or Expressions)
+What are the ways that we can rename columns/expressions:
+- Using `alias` on `select`.
+- Add or rename column using `withColumn` (*row-level transformation*).
+- Rename column using `withColumnRenamed`.
+- Rename a bunch of columns using `toDF`
+
+#### `withColumn` function
+```python
+#The second parameter must be a Pyspark Column
+gamers_df.\
+    select('users_id','user_name','user_lastname').\
+    withColumn('full_name',concat('user_name',lit(', '),'user_lastname'))
+
+#To Count the number of videogames the user ownes we can use size function (for Array type)
+from pyspark.sql.functions import size
+gamers_df.\
+    select('users_id','user_name','user_lastname').\
+    withColumn('videogames_count',size('videogames'))
+
+gamers_df.\
+    select('users_id','user_name','user_lastname').\
+    withColumn('videogames_count',size(gamers_df['videogames']))
+
+#Combining withColumn and alias
+gamers_df.\
+    withColumn('full_name',concat('user_name',lit(', '),'user_lastname')).\
+    select(
+        col('user_id').alias('user_identification'),
+        size(gamers_df['videogames']).alias('videogames_count'),
+        'user_fullname'
+    )
+```
+
+#### `withColumnRenamed` function
+```python
+gamers_df.\
+    select('users_id','user_name','user_lastname').\
+    withColumnRenamed('user_id','identification').\
+    withColumnRenamed('user_name','first_name').\
+    withColumnRenamed('user_lastname','last_name')
+```
+
+#### `toDF` function (renaming and reordering multiple columns)
+```python
+#setting columns from original list
+original_columns = ['user_id','user_name','user_lastname']
+
+#setting columns from final list
+final_columns = ['id','name','lastname','phones','videogames']
+
+#we can use toDF after select function
+gamers_df.\
+    select(original_columns).\
+    toDF(final_columns)
+# | id | name | lastname | phones | videogames |
+
+```
 ###### Reference
 > Raju, D. Databricks Certified Associate Developer - Apache Spark 2022 [Online Course]. Udemy
 > https://www.udemy.com/course/databricks-certified-associate-developer-for-apache-spark/
