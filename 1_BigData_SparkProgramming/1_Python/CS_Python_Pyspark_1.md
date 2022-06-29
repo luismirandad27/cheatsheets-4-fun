@@ -254,20 +254,17 @@ from pyspark.sql.functions import explode, explode_outer
 #using col
 
 users_df.\
-    select('id',col('phone_numbers')[0].alias('mobile')),col('phone_numbers')[1].alias('home').\
-    show()
+    select('id',col('phone_numbers')[0].alias('mobile')),col('phone_numbers')[1].alias('home')
 
 #explode -> ignore null or empty values
 users_df.\
     withColumn('phone_numbers',explode('phone_numbers')).\
-    drop('phone_numbers').\
-    show()
+    drop('phone_numbers')
 
 #explode_outer -> not ignore null or empty values
 users_df.\
     withColumn('phone_numbers',explode_outer('phone_numbers')).\
-    drop('phone_numbers').\
-    show()
+    drop('phone_numbers')
 ```
 
 #### `Map` Type
@@ -308,22 +305,19 @@ from pyspark.sql.functions import explode, explode_outer
 #using col
 
 users_df.\
-    select('id',col('phone_numbers')['mobile'].alias('mobile')),col('phone_numbers')['home'].alias('home').\
-    show()
+    select('id',col('phone_numbers')['mobile'].alias('mobile')),col('phone_numbers')['home'].alias('home')
 
 #explode -> ignore null or empty values
 users_df.\
     select('id',explode('phone_numbers')).\
     withColumnRenamed('key','phone_type').\
-    withColumnRenamed('value','phone_number').\
-    show()
+    withColumnRenamed('value','phone_number')
 
 #explode_outer -> not ignore null or empty values
 users_df.\
    select('id',explode_outer('phone_numbers')).\
     withColumnRenamed('key','phone_type').\
-    withColumnRenamed('value','phone_number').\
-    show()
+    withColumnRenamed('value','phone_number')
 ```
 
 #### `Struct` Type
@@ -364,20 +358,17 @@ from pyspark.sql.functions import explode, explode_outer
 #using col
 
 users_df.\
-    select('id','phone_numbers.mobile','phone_numbers.home').\
-    show()
+    select('id','phone_numbers.mobile','phone_numbers.home')
 
 users_df.\
-    select('id','phone_numbers.*').\
-    show()
+    select('id','phone_numbers.*')
 
 users_df.\
-    select('id',col('phone_numbers')['mobile'].alias('mobile'),col('phone_numbers')['home'].alias('home')).\
-    show()
+    select('id',col('phone_numbers')['mobile'].alias('mobile'),col('phone_numbers')['home'].alias('home'))
 ```
 
 ---
-## Select and Rename
+## Selecting and Renaming DataFrames
 ###### Creating Data Frame
 ```python
 import datetime
@@ -418,6 +409,94 @@ Data structures are *immutable*, we cannot change them once created. The way we 
 **Narrow Transformations**: doesn't result in *shuffling*. Than means that all the transformation is operating in the each partition (any data movement will not occur). Also, Spark will make a process called *pipelining*, that means that every narrow operation will be executed *in-memory*.
 
 **Wide Transformations**: result in *shuffling*. Means that, in the operation, many input partitions are being used to create different output partitions (writing on disk).
+
+In the following table, we could see the functions available for each type:
+
+
+
+| Narrow Transformation | Wide Transformation |
+| -------- | -------- |
+| `df.select`     | `df.distinct`     |
+| `df.filter`     | `df.union`     |
+| `df.withColumn`     | `df.join`     |
+| `df.withColumnRenamed`     | `df.groupBy`     |
+| `df.drop`     | `df.sort`-`df.orderBy`     |
+
+### 1. Querying DataFrames
+
+#### `select` function
+
+```python
+#Selecting all columns (*)
+gamers_df.select('*')
+
+#Selecting specific columns of the df
+gamers_df.select('user_id','user_name','user_lastname')
+
+#Selecting specific columns of the df as a list
+gamers_df.select(['user_id','user_name','user_lastname'])
+
+#Selecting specific columns using Pyspark DataFrame Columns
+gamers_df.select(gamers_df['user_id'],gamers_df['user_name'],gamers_df['user_lastname'])
+```
+
+#### `alias` function
+```python
+#DataFrame alias
+gamers_df.alias('g').select('g.*')
+gamers_df.alias('g').select('g.user_id')
+gamers_df.alias('g').select(g['user_id'])
+
+#DataFrame column alias
+from pyspark.sql.functions import col
+gamers_df.select(col('user_id'),col('user_name'),col('user_lastname'))
+#Combining all variations
+gamers_df.alias('g').select('g.user_id',g['user_name'],col('user_lastname'))
+```
+
+#### `concat` and `lit` functions
+```python
+from pyspark.sql.functions import concat, lit
+
+gamers_df.select(
+    col('user_id'),
+    concat(col('user_name'),lit(', '),col('user_lastname')).alias('full_name')
+)
+
+#With Pyspark DataFrame Columns
+gamers_df.select(
+    col('user_id'),
+    concat(gamers_df['user_name'],lit(', '),gamers_df['user_lastname']).alias('full_name')
+)
+```
+
+#### `selectExpr` function
+```python
+#selectExpr works (in some cases like select function)
+gamers_df.selectExpr('*')
+gamers_df.alias('u').selectExpr('u.*')
+gamers_df.selectExpr('user_id','user_name')
+gamers_df.selectExpr(['user_id','user_name'])
+
+#and in other cases don't (DOESN'T WORK WITH col and Pyspark DataFrame Columns)
+gamers_df.selectExpr(
+    'user_id',
+    "concat(user_name,', ',user_lastname) AS full_name"    
+)
+```
+
+#### `createOrReplaceTempView` and `spark.sql`
+```python
+#Creating a temporary view that can be query by an spark.sql statement
+gamers_df.createOrReplaceTempView('gamers_view')
+
+#Using spark.sql to make a select statement
+spark.sql("""
+    SELECT user_id, user_name, user_lastname,
+           concat(user_name,', ',user_lastname) as user_fullname
+    FROM gamers_view
+""")
+```
 
 ###### Reference
 > Raju, D. Databricks Certified Associate Developer - Apache Spark 2022 [Online Course]. Udemy
