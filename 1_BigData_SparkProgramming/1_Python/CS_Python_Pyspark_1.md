@@ -1,6 +1,6 @@
 # Pyspark Cheatsheet
 
-## Creation of a Pyspark Data Frame
+## Creating of a Pyspark Data Frame
 
 ### 1. Creating a Data Frame from List
 
@@ -381,7 +381,7 @@ users_df.\
 ```
 
 ---
-## Selecting and Renaming DataFrames <a name="introduction"></a>
+## Selecting and Renaming DataFrames
 ###### Creating Data Frame
 ```python
 import datetime
@@ -613,7 +613,341 @@ gamers_df.\
     select(original_columns).\
     toDF(final_columns)
 # | id | name | lastname | phones | videogames |
+```
+---
+## Manipulating Columns
+### 1. Categories of Functions
 
+These are the categories of functions offered by `pyspark.sql.functions`
+
+* String Manipulation Functions
+    * Case conversion: `lower` and `upper`
+    * Getting length: `length`
+    * Substrings: `substring` and `split`
+    * Trimming: `trim`,`ltrim` and `rtrim`
+    * Padding: `lpad` and `rpad`
+    * Concatenating string: `concat` and `concat_ws`
+* Data Manipulation Functions
+    * Current date and time: `current_date` and `current_timestamp`
+    * Date Arithmetic: `date_add`, `date_sub`, `datediff`, `months_between`, `add_months`, `nextday`
+    * Begin/End Date/Time: `last_day`, `trunc`, `date_trunc`
+    * Formatting: `date_format`
+    * Extracting Info: `dateofyear`,`dateofmonth`,`dateofweek`,`year` and `month`
+* Aggregate Functions
+    * `count`, `countDistinct`, `sum`, `avg`, `min` and `max`
+* Other Functions
+    * `CASE`/`WHEN`, `cast` and others...
+
+### 2. How to get some help on Spark Functions?
+#### Use `help`
+```python
+help(date_format)
+```
+
+#### *Remember*...
+There are some functions that need to be called with a parameter as a Column Pyspark Type and not just a simple string, for example...
+```python
+#Using upper and desc for the example
+from pyspark.sql.functions import upper, desc, col, lit
+
+students = [
+            (1,"Luis","Miranda",3.4,"peru","+1 236 999 9999"),
+            (2,"Gianella","Palacios",3.8,"peru","+1 778 999 9999"),
+            (3,"Mario","Miranda",3.4,"peru","+51 999 999 999")
+           ]
+
+students_df = spark.\
+            createDataFrame(students,schema="""
+                student_id INT,
+                student_name STRING,
+                student_lastname STRING,
+                student_gpa FLOAT,
+                student_country STRING,
+                student_phone STRING
+            """)
+
+#Using upper function
+students_df.select(upper('student_name'),upper('student_lastname'))#this OK
+
+students_df.select(upper(col('student_name')),upper(col('student_lastname'))#this OK too
+
+#However, Using desc function
+students_df.\
+    orderBy('student_id'.desc()) #str has no attribute 'desc'
+
+students_df.\
+    orderBy(col('student_id').desc()) #This is OK
+
+#Using lit function
+students_df.\
+    select(concat(col('student_name'),", ",col('student_lastname'))) #This cause an error
+                   
+students_df.\
+    select(concat(col('student_name'),lit(", "),col('student_lastname'))) #lit generates a Pyspark Column Type     
+```
+### 3. String Manipulation Functions
+```python
+# concat function
+from pyspark.sql.functions import concat,col,lit
+
+students.\
+    select(concat(col('student_name'),lit(', '),col('student_last_name')).alias('full_name'))
+
+#conversion and length
+from pyspark.sql.functions import initcap, upper, lower, length
+
+students.\
+    select('student_country').\
+    withColumn('student_country_u',upper(col('student_country'))).\
+    withColumn('student_country_l',lower(col('student_country'))).\
+    withColumn('student_country_i',initicap(col('student_country'))).\
+    withColumn('student_country_len',length(col('student_country')))
+# Results: peru | PERU | peru | Peru | 4 (for 1 example)
+```
+
+#### Substrings
+```python
+from pyspark.sql.functions import substring, split, lit, explode
+
+#creating a dummy dataframe
+l = [('X', )]
+df = spark.createDataFrame(l,"dummy STRING")
+
+#substring function
+df.select(substring(lit("Hello World"),7,5))#World
+df.select(substring(lit("Hello World"),-5,5))#World
+
+#split function
+df.select(split(lit("Hello World, What's up?")," "))
+#Result: ["Hello","World,","What's","up?"]
+
+df.select(explode(split(lit("Hello World, What's up?")," ")))
+#Result:
+#------
+#Hello
+#World,
+#What's
+#up?
+
+df.select(explode(split(lit("Hello World, What's up?")," "))[1])
+#Result: "World,"
+```
+#### Padding
+Typically to build fixed length values or records
+```python
+from pyspark.sql.functions import lpad,rpad,lit
+
+#creating a dummy dataframe
+l = [('X', )]
+df = spark.createDataFrame(l,"dummy STRING")
+
+df.select(lpad(lit("Hello"),10,"-"))
+#Result: -----Hello
+df.select(lpad(lit("Hello"),6,"-"))
+#Result: -Hello
+```
+
+#### Trimming
+To remove unnecessart characters from fixed length records.
+We can use `expr` or `selectExpr` to use SparkSQL based trim functions.
+```python
+from pyspark.sql.functions import col, trim, ltrim, rtrim, expr
+l = [("    Hello.    ",)]
+df = spark.createDataFrame(l).toDF("dummy")
+
+#using pyspark functions
+df.withColumn("ltrim",ltrim(col("dummy")))\
+  .withColumn("rtrim",rtrim(col("dummy")))\
+  .withColumn("trim",trim(col("dummy")))
+#Result: "Hello.    " | "    Hello." | "Hello."
+
+#using Spark SQL based functions
+df.withColumn("ltrim",expr("ltrim(dummy)"))\
+  .withColumn("rtrim",expr("rtrim('.',rtrim(dummy))"))\
+  .withColumn("trim",trim(col("dummy")))
+#Result: "Hello.    " | "   Hello" | "Hello."
+
+#one last option using Spark SQL based functions
+df.withColumn("ltrim",expr("LEADING ' ' FROM dummy "))\
+  .withColumn("rtrim",expr("TRAILING '.' FROM rtrim(dummy)"))\
+  .withColumn("trim",expr("BOTH ' ' FROM dummy"))
+#Result: "Hello.    " | "   Hello" | "Hello."
+```
+
+### 4. Date and Time Manipulation Functions
+#### The Basics
+```python
+l = [('X', )]
+df = spark.createDataFrame(l).toDF("dummy")
+
+#Get current Date and Time
+from pyspark.sql.functions import current_date, current_timestamp
+
+df.select(current_date()) #2022-06-29
+df.select(current_timestamp()) #2022-06-29 21:27:10.23
+
+#Converting STRING to Date or Time
+from pyspark.sql.functions import lit, to_date, to_timestamp
+
+df.select(to_date(lit('20220629','yyyyMMdd')).alias('to_date')) #2022-06-29
+df.select(to_timestamp(lit('20220629 2120','yyyyMMdd HHmm')).alias('to_timestamp')) #2022-06-29 21:20:00
+```
+
+#### Date/Time Arithmetic
+```python
+datetimes = [
+        ("2022-02-28", "2022-02-28 10:20:00.123")
+    ]
+
+datetimeDF = spark.createDataFrame(datetimes,schema="date STRING, time STRING")
+
+#adding and substracting days
+from pyspark.sql.functions import date_add, date_sub
+datetimeDF.\
+    withColumn("date_add_date",date_add("date",10)).\ #2022-03-10
+    withColumn("date_add_time",date_add("time",10)).\ #2022-03-10
+    withColumn("date_sub_date",date_sub("date",10)).\ #2022-02-18
+    withColumn("date_sub_time",date_sub("time",10))   #2022-02-18
+
+#difference between dates
+from pyspark.sql.functions import datediff, current_date, current_timestamp
+datetimeDF.\
+    withColumn("datediff_date",datediff(current_date(),"date")).\
+    withColumn("datediff_time",datediff(current_timestamp(),"time"))
+
+#months operations
+from pyspark.sql.functions import months_between, add_months, round
+datetimeDF.\
+    withColumn("months_between_d",round(months_between(current_date(),"date"),2)).\
+    withColumn("months_between_t",round(months_between(current_timestamp(),"time"),2)).\
+    withColumn("add_months_d",add_months("date",3)).\
+    withColumn("add_months_t",add_months("time",3))
+```
+
+#### Trunc functions on Date/Time
+```python
+#using trunc
+from pyspark.sql.functions import trunc
+
+datetimeDF.\
+    withColumn("date_trunc",trunc("date","MM")).\ #2022-02-01
+    withColumn("time_trunc",trunc("time","yy"))   #2022-01-01
+
+#using date_trunc
+from pyspark.sql.functions import date_trunc
+
+datetimeDF.\
+    withColumn("date_dt",date_trunc("HOUR","date")).\ #2022-02-28 00:00:00
+    withColumn("time_dt",trunc("HOUR","time")).\   #2022-02-28 10:00:00.00
+    withColumn("time_dt1",trunc("dd","time")).\   #2022-02-28 00:00:00.00
+```
+
+#### Extracting Date/Time functions
+```python
+from pyspark.sql import functions
+datetimeDF.\
+    select(
+        current_timestamp().alias('current_timestamp'),
+        year(current_timestamp()).alias('year'),
+        month(current_timestamp()).alias('month'),
+        dayofmonth(current_timestamp()).alias('dayofmonth'),
+        hour(current_timestamp()).alias('hour'),
+        minute(current_timestamp()).alias('minute'),
+        second(current_timestamp()).alias('second')
+    )
+```
+#### Using `to_date` and `to_timestamp`
+```python
+from pyspark.sql.functions import to_date, to_timestamp
+
+#to_date
+df.select(
+    to_date(lit('20220629'),'yyyyMMdd').alias('to_date'),
+    to_date(lit('2022061'),'yyyyDDD').alias('to_date'), #2022-03-02
+    to_date(lit('29/06/2022'),'dd/MM/yyyy').alias('to_date'),
+    to_date(lit('29-Jun-2022'),'dd-MMM-yyyy').alias('to_date'),
+    to_date(lit('29-June-2022'),'dd-MMMM-yyyy').alias('to_date')
+)
+
+#to_timestamp
+df.select(
+    to_timestamp(lit('29-Jun-2022 17:30:15'),'dd-MMM-yyyy HH:mm:ss').alias('to_date'),
+    to_timestamp(lit('29-Jun-2022 17:30:15.123'),'dd-MMM-yyyy HH:mm:ss.SSS').alias('to_date')
+)
+```
+
+#### Using `date_format`
+```python
+from pyspark.sql.functions import date_format
+datetimeDF.\
+    withColumn("day_format1",date_format("date","yyyyMMddHHmmss")).\
+    withColumn("day_format2",date_format("date","MMM d, yyyy")).\
+    withColumn("day_format3",date_format("date","EE")).\ #Fri
+    withColumn("day_format4",date_format("date","EEEE")) #Friday
+```
+
+#### Using `unix_timestamp` and `from_timestamp`
+It is an integer and started from January 1st 1970. We can convert from unix timestamp to regular date/timestamp and viceversa
+
+Important observation: Spark 3.0 and later doesn't support conversion to unix_timestamp with format yyyy-MM-dd HH-mm-ss.SSS due to the 'SSS'
+
+```python
+from pyspark.sql.functions import unix_timestamp, from_timestamp, col
+
+#using unix_timestamp
+datetimeDF.\
+    withColumn("unix_date_id",unix_timestamp(col('dateString').cast('string'),"yyyyMMdd")).\
+    withColumn("unix_date",unix_timestamp("date","yyyyMMdd")).\
+    withColumn("unix_time",unix_timestamp("time")) #with format: yyyy-MM-dd HH:mm:ss
+
+#using from_timestamp
+unixtime = [(139356180, )]
+unixtimeDF = spark.createDataFrame(unixtime).toDF("unixtime")
+
+unixtimeDF.\
+    withColumn("date",from_unixtime("unixtime","yyyyMMdd")).\
+    withColumn("time",from_unixtime("unixtime")) 
+#both columns will be string
+```
+
+### 5. Dealing with Nulls
+#### using `coalesce`
+```python
+from pyspark.sql.functions import coalesce,col,expr
+
+students_df.\
+    withColumn("gpa1",coalesce("gpa",lit(0))).\
+    withColumn("gpa2",coalesce(col("gpa").cast("int"),lit(0))).\
+    withColumn("gpa3",expr("nvl(gpa,0)")).\
+    withColumn("gpa3",expr("nvl(nullif(gpa,''),0)")).\
+```
+
+### 6. CASE / WHEN
+#### Option 1: using `expr`
+```python
+grades = [(1,20),(2,14),(3,15),(4,8)]
+grades_df = spark.createDataFrame(grades,schema="id INT, grade INT")
+
+from pyspark.sql.functions import expr
+
+grades_df.\
+    withColumn("grade_type",expr("""
+                                    CASE WHEN grade between 0 and 10 then 'failed'
+                                    WHEN grade between 11 and 14 then 'need to study more'
+                                    ELSE 'GOOD JOB!"""))
+```
+
+#### Option 2: using `when` and `otherwise`
+```python
+grades = [(1,20),(2,14),(3,15),(4,8)]
+grades_df = spark.createDataFrame(grades,schema="id INT, grade INT")
+
+from pyspark.sql.functions import when, lit, col
+
+grades_df.\
+    withColumn("grade_type",when(col("grade").between(0,10),lit("failed")).\
+                            .when(col("grade").between(11,14),lit("need to study more")).\
+                            .otherwise(lit("GOOD JOB!")))
 ```
 ###### Reference
 > Raju, D. Databricks Certified Associate Developer - Apache Spark 2022 [Online Course]. Udemy
