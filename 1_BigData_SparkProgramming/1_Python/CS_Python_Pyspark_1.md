@@ -949,6 +949,132 @@ grades_df.\
                             .when(col("grade").between(11,14),lit("need to study more")).\
                             .otherwise(lit("GOOD JOB!")))
 ```
+---
+## Filtering Pyspark DataFrame
+###### Creating Data Frame
+```python
+import datetime
+from pyspark.sql import Row
+
+#Creating list of dictionaries
+gamers = [
+    {
+        "user_id":1,
+        "user_name":"Luis Miguel",
+        "user_lastname":"Miranda",
+        "contact_info":Row(mobile="+1 312 312 3132", home="+1 999 888 1233"),
+        "videogames":["fifa 22","pes 22"],
+        "birth_date":datetime.date(1993,3,1),
+        "last_update":datetime.datetime(2021,2,10,1,14,0),
+        "total_amount":100.10,
+        "is_videogame_fan":True,
+        "nationality": "Peru"
+    },
+    {
+        "user_id":2,
+        "user_name":"Mario Alonso",
+        "user_lastname":"Miranda",
+        "contact_info":Row(home="+1 999 888 1233"),
+        "videogames":["fifa 22","diablo immortal"]
+        "birth_date":datetime.date(2000,6,27),
+        "last_update":datetime.datetime(2021,2,10,1,14,0),
+        "total_amount":999.21,
+        "is_videogame_fan":True,
+        "nationality": "Peru"
+    }
+]
+
+import panda as pd
+
+spark.conf.set('spark.sql.execution.arrow.pyspark.enabled',False)
+
+gamers_df = spark.createDataFrame(pd.DataFrame(gamers))
+```
+
+### 1. Overview
+
+1. To make filters we can use `where` and `filter` functions
+2. Both are synonyms and we can use *SQL Style* or *Non SQL Style* filters
+3. For *SQL Style* we have to use `col` function
+
+Let´s see some examples
+```python
+from pyspark.sql.functions import col
+
+#Using col function
+gamers_df.filter(col("user_id") == 2)
+gamers_df.where(col("user_id") == 2)
+
+#Using string condition
+gamers_df.filter("user_id == 2")
+gamers_df.where("user_id == 2")
+
+#Other way
+gamers_df.createOrReplaceTempView("gamers_view")
+spark.sql("""
+        SELECT *
+        FROM gamers_view
+        WHERE gamer_id = 2
+""")
+```
+
+### 2. Conditions and Operators
+```python
+# -- Equals condition --
+gamers_df.filter(col("is_videogame_fan") == True)
+gamers_df.filter(col("user_name") == "Luis")
+gamers_df.filter("is_videogame_fan = 'false'") #Spark SQL condition
+gamers_df.createOrReplaceTempView("gamers_view")
+spark.sql("""
+        SELECT * FROM gamers_view
+        WHERE is_videogame_fan = 'false'
+    """)
+
+# Validate if value is NaN
+gamers_df.select('total_amount',isnan('total_amount'))
+
+# -- Not Equals condition --
+gamers_df.filter(col("total_amount")!=1000.0)
+gamers_df.filter(col("total_amount").isNull())
+
+gamers_df.filter((col('total_amount')!=1000.0) | (col('total_amount').isNull()))
+gamers_df.filter((col('total_amount')!=1000.0) | (col('total_amount') != ''))
+gamers_df.filter("total_amount != 1000.0 OR total_amount IS NULL")
+                 
+# -- Between condition --
+gamers_df.filter(col("total_amount").between(500,1500))
+gamers_df.filter("total_amount BETWEEN 500 AND 1500")
+                 
+# -- Null and Not Null Condition --
+gamers_df.filter(col('is_videogame_fan').isNull())
+gamers_df.filter("is_videogame_fan IS NULL")
+
+gamers_df.filter(col('is_videogame_fan').isNotNull())
+gamers_df.filter("is_videogame_fan IS NOT NULL")
+                 
+# -- Boolean Operators
+gamers_df.filter((col('total_amount')!=1000.0) | (col('total_amount') != '')
+gamers_df.filter("total_amount != 1000.0 OR total_amount IS NULL")
+                 
+# -- isIn Operator --
+gamers_df.filter(col('nationality').isIn('Peru','Canada',''))#empty values
+gamers_df.filter("nationality IN ('Peru','Canada','')")
+gamers_df.filter("nationality IN ('Peru','Canada','',NULL)") #NULL will not work!
+                 
+# -- Greater Than / Less Than Operators
+gamers_df.filter(col('total_amount')>100 & isnan(col('total_amount'))==False)
+gamers_df.filter(col('total_amount')<1000 & isnan(col('total_amount'))==False)
+gamers_df.filter(col('total_amount')>=100 & isnan(col('total_amount'))==False)
+gamers_df.filter(col('total_amount')<=1000 & isnan(col('total_amount'))==False)
+                 
+gamers_df.filter('total_amount < 1000 AND total_amount IS NOT NULL')
+gamers_df.filter('total_amount > 100 AND total_amount IS NOT NULL')
+gamers_df.filter('total_amount <= 1000 AND total_amount IS NOT NULL')
+gamers_df.filter('total_amount >= 100 AND total_amount IS NOT NULL')
+                 
+#Remember: AND (&) OR (|)
+```
+
 ###### Reference
 > Raju, D. Databricks Certified Associate Developer - Apache Spark 2022 [Online Course]. Udemy
 > https://www.udemy.com/course/databricks-certified-associate-developer-for-apache-spark/
