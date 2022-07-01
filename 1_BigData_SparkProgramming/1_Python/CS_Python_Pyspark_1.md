@@ -1075,6 +1075,229 @@ gamers_df.filter('total_amount >= 100 AND total_amount IS NOT NULL')
 #Remember: AND (&) OR (|)
 ```
 
+---
+## Droping Columns and Rows in Pyspark
+###### Creating DataFrame
+```python
+import datetime
+from pyspark.sql.functions import Row
+import pandas as pd
+
+gamers = [
+    {
+        "id": 1,
+        "first_name": "Luis",
+        "last_name": "Miranda",
+        "email": "email@domain.com",
+        "phone_numbers": Row(mobile="+1 999 999 8901", home="+1         888 888 8911"),
+        "videogames": ["Fifa Street", "COD Warzone"],
+        "is_videogame_fan": True,
+        "total_amount": 580.90,
+        "last_purchase_from": datetime.date(2022, 6, 30),
+        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
+    },
+    {
+        "id": 2,
+        "first_name": "Mario",
+        "last_name": "Miranda",
+        "email": "email@domain.com",
+        "phone_numbers": Row(mobile="+1 222 222 8901", home="+1         333 333 4444"),
+        "videogames": ["Fifa 22"],
+        "is_videogame_fan": True,
+        "total_amount": 239.90,
+        "last_purchase_from": datetime.date(2022, 6, 30),
+        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
+    },
+    {
+        "id": 3,
+        "first_name": "Hugo",
+        "last_name": "Mendoza",
+        "email": "email@domain.com",
+        "phone_numbers": Row(mobile="+1 444 444 8901", home="+1         555 666 8911"),
+        "videogames": ["NBA 2k22"],
+        "is_videogame_fan": True,
+        "total_amount":800.90,
+        "last_purchase_from": datetime.date(2022, 6, 30),
+        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
+    }
+]
+
+spark.conf.set('spark.sql.execution.arrow.pyspark.enabled',False)
+gamers_df = spark.createDataFrame(pd.DataFrame(gamers))
+```
+### Overview
+#### `drop` function
+```python
+from pyspark.sql.functions import drop
+
+#dropping a single column
+gamers_df.drop('last_updated_ts')
+gamers_df.drop(col('last_updated_ts'))
+gamers_df.drop(gamers_df['last_updated_ts'])
+gamers_df.drop(col('date_of_birth')) #if doesn't exist, it will be ignored
+
+#droping multiple columns
+gamers_df.drop('first_name','last_name','email')
+gamers_df.drop(col('first_name'),col('last_name'),col('email'))#this will fail - if some columns does not exist, they will be ignored
+
+#droping using a list
+columns_to_drop = ['first_name','last_name','email']
+gamers_df.drop(columns_to_drop) #this will fail, because the parameter must be a string not a list
+gamers_df.drop(*columns_to_drop)
+```
+
+#### `distinct` and `dropDuplicates` functions (for rows)
+```python
+#drop exact duplicates rows
+gamers_df.distinct()
+
+#drop duplicates based on a column or columns
+gamers_df.dropDuplicates('id')#This will fail because parameter must be a seq type object (list or array)
+gamers_df.dropDuplicates(['id'])
+gamers_df.dropDuplicates(['id','first_name'])
+```
+
+#### Dropping Null based Record
+```python
+gamers_df.na.drop('all') #drop rows that all columns are null values
+gamers_df.na.drop('any') #drop rows that at least 1 column is null
+gamers_df.na.drop(tresh = 2) #drop rows that have less than 'tresh' non-null values (this overwrite the 'how' parameter)
+gamers_df.na.drop(how = 'all',subset = ['id','email'])
+gamers_df.na.drop(how = 'any',subset = ['id','email'])
+```
+
+---
+## Sorting Data in Spark
+###### Creating DataFrame
+```python
+import datetime
+from pyspark.sql.functions import Row
+import pandas as pd
+
+gamers = [
+    {
+        "id": 1,
+        "first_name": "Luis",
+        "last_name": "Miranda",
+        "email": "email@domain.com",
+        "phone_numbers": Row(mobile="+1 999 999 8901", home="+1         888 888 8911"),
+        "videogames": ["Fifa Street", "COD Warzone"],
+        "is_videogame_fan": True,
+        "total_amount": 580.90,
+        "last_purchase_from": datetime.date(2022, 6, 30),
+        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
+    },
+    {
+        "id": 2,
+        "first_name": "Mario",
+        "last_name": "Miranda",
+        "email": "email@domain.com",
+        "phone_numbers": Row(mobile="+1 222 222 8901", home="+1         333 333 4444"),
+        "videogames": ["Fifa 22"],
+        "is_videogame_fan": True,
+        "total_amount": 239.90,
+        "last_purchase_from": datetime.date(2022, 6, 30),
+        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
+    },
+    {
+        "id": 3,
+        "first_name": "Hugo",
+        "last_name": "Mendoza",
+        "email": "email@domain.com",
+        "phone_numbers": Row(mobile="+1 444 444 8901", home="+1         555 666 8911"),
+        "videogames": ["NBA 2k22"],
+        "is_videogame_fan": True,
+        "total_amount":800.90,
+        "last_purchase_from": datetime.date(2022, 6, 30),
+        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
+    }
+]
+
+spark.conf.set('spark.sql.execution.arrow.pyspark.enabled',False)
+gamers_df = spark.createDataFrame(pd.DataFrame(gamers))
+```
+
+#### `sort` function 
+```python
+from pyspark.sql.functions import col
+
+#sorting ascending order by a column
+gamers_df.sort('first_name')
+gamers_df.sort(gamers_df.first_name)
+gamers_df.sort(gamers_df['first_name'])
+gamers_df.sort(col('first_name'))
+
+##using an array column
+from pyspark.sql.functions import size
+gamers_df.\
+    select('id','first_name','last_name','videogames').\
+    withColumn('no_of_videogames',size('videogames')).\
+    sort(size('videogames'))
+
+##setting descending sorting
+from pyspark.sql.functions import desc
+gamers_df.sort('first_name',ascending=False)
+gamers_df.sort(desc('first_name'))
+gamers_df.sort(gamers_df['first_name'].desc())
+gamers_df.\
+    select('id','first_name','last_name','videogames').\
+    withColumn('no_of_videogames',size('videogames')).\
+    sort('no_of_videogames',ascending = False)
+gamers_df.\
+    select('id','first_name','last_name','videogames').\
+    withColumn('no_of_videogames',size('videogames')).\
+    sort(col('no_of_videogames').desc())
+```
+
+#### Dealing with Null values (feat `orderBy` function)
+
+- If we have null values, with an ascending order, nulls go first
+- If we have null values, with an ascending order, nulls go last
+
+```python
+#other options to deal with natural ordering and 
+gamers_df.orderBy(col('last_purchase_from').asc_nulls_last())
+gamers_df.orderBy(col('last_purchase_from').desc_nulls_first())
+
+gamers_df.orderBy(gamers_df['last_purchase_from'].asc_nulls_last())
+gamers_df.orderBy(gamers_df['last_purchase_from'].desc_nulls_first())
+```
+
+#### Some other examples
+```python
+gamers_df.\
+    sort(gamers_df['first_name'],gamers_df['last_name'].desc())
+
+from pyspark.sql.functions import desc
+gamers_df.\
+    sort(gamers_df['first_name'],desc(gamers_df['last_name']))
+gamers_df.\
+    sort('first_name',desc('last_name'))
+gamers_df.\
+    sort(['first_name','last_name'],ascending = [1,0])
+```
+
+#### Prioritized Sorting of DataFrames
+```python
+from pyspark.sql.functions import col, when
+
+when_statement = when(col('is_videogame_fan')== True,0).otherwise(1)
+
+gamers_df.orderBy(when_statement,col('first_name').desc())
+
+#OR
+from pyspark.sql.functions import expr
+
+when_statement = expr("""
+            CASE WHEN is_videogame_fan = True THEN 0
+                 ELSE 1 
+            END
+""")
+
+gamers_df.sort(when_statements,col('first_name').desc())
+
+```
+
 ###### Reference
 > Raju, D. Databricks Certified Associate Developer - Apache Spark 2022 [Online Course]. Udemy
 > https://www.udemy.com/course/databricks-certified-associate-developer-for-apache-spark/
