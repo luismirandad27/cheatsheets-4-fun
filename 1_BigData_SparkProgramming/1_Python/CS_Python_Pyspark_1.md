@@ -1252,7 +1252,7 @@ gamers_df.\
 #### Dealing with Null values (feat `orderBy` function)
 
 - If we have null values, with an ascending order, nulls go first
-- If we have null values, with an ascending order, nulls go last
+- If we have null values, with an descending order, nulls go last
 
 ```python
 #other options to deal with natural ordering and 
