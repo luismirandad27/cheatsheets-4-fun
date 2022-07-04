@@ -1277,7 +1277,7 @@ gamers_df.\
     sort(['first_name','last_name'],ascending = [1,0])
 ```
 
-#### Prioritized Sorting of DataFrames
+#### Prioritized Sorting on DataFrames
 ```python
 from pyspark.sql.functions import col, when
 
@@ -1295,7 +1295,90 @@ when_statement = expr("""
 """)
 
 gamers_df.sort(when_statements,col('first_name').desc())
+```
 
+## Performing Aggregations on Pyspark
+
+### Overview
+What are the commom aggregate functions available?
+- `count`
+- `sum`
+- `min`
+- `max`
+- `avg`
+
+#### `count` function
+```python
+from pyspark.sql.functions import count
+# count(*)
+gamers_orders_df.select(count(*))
+# count(*) using GroupBy
+gamers_orders_df.groupBy('purchase_date').agg(count('*'))
+
+# Function count on data frame is action. It will trigger execution.
+gamers_orders_df.count()
+
+# count is transformation (wide).
+# Execution will be triggered when we perform actions such as show
+gamers_orders_df.select(count("*")).show()
+```
+
+#### using `groupBy` function 
+```python
+#1st option
+from pyspark.sql.functions import min, max, sum, avg
+gamers_orders_df.groupBy('purchase_date').agg(min('total_amount')) #groupBy parameter could be a *lst_cols
+
+lst_columns_group = ['purchase_date']
+gamers_orders_df.groupBy(*lst_columns_group).agg(min('total_amount'))
+
+#2nd option
+gamers_orders_df.groupBy().min() #min() is a method from a GroupData Object 
+gamers_orders_df.groupBy().min('total_amount') #min() just accepts numeric columns
+
+lst_numeric_cols = ['id','total_amount']
+gamers_orders_df.groupBy('purchase_date').min(*lst_numeric_cols)
+
+#other way
+gamers_orders_df_grouped = gamers_orders_df.groupBy('customer_id')
+
+gamers_orders_df_grouped.\
+            count().\
+            withColumnRenamed('count','no_orders_per_customer_id')
+
+gamers_orders_df_grouped.\
+                sum()#it will sum only the numerical columns
+
+gamers_orders_df_grouped.\
+                avg('total_amount').\
+                withColumnRenamed('avg(total_amount)','avg_total_amount')
+```
+
+#### `agg` function
+```python
+gamers_orders_df_grouped = gamers_orders_df.groupBy('customer_id')
+
+gamers_orders_df_grouped = gamers_orders_df.groupBy('customer_id').\
+        sum('total_amount','total_taxes')
+
+gamers_orders_df_grouped.\
+    agg(sum('total_amount'),sum('total_taxes'))
+
+gamers_orders_df_grouped.\
+    agg(sum('total_amount').alias('total_amount_per_id'),sum('total_taxes').alias('total_taxes_per_id'))
+
+from pyspark.sql.functions import round
+
+gamers_orders_df_grouped.\
+    agg(sum('total_amount').alias('total_amount_per_id'),round(sum('total_taxes'),2).alias('total_taxes_per_id'))
+
+gamers_orders_df_grouped.\
+    agg({'total_amount':'sum','total_taxes':'sum'}).\
+    toDF('customer_id','total_amount_per_customer','total_taxes_per_customer').\
+    withColumn('total_amount_per_customer',round('total_amount_per_customer',2))
+
+#we can apply filters before making the aggregations
+gamers_orders_df.filter('videogame_genre == "ACTION"').agg(sum('total_amount'))
 ```
 
 ###### Reference
