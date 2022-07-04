@@ -1,6 +1,6 @@
 # Pyspark Cheatsheet
 
-## Creating of a Pyspark Data Frame
+## Creating Spark Data Frames with Pyspark
 
 ### 1. Creating a Data Frame from List
 
@@ -381,7 +381,7 @@ users_df.\
 ```
 
 ---
-## Selecting and Renaming DataFrames
+## Selecting and Renaming Spark Data Frames
 ###### Creating Data Frame
 ```python
 import datetime
@@ -417,7 +417,7 @@ gamers = [
 spark.conf.set("spark.sql.execution.arrow.pyspark.enabled",False)
 ```
 
-###### Creating DataFrame
+###### Creating Data Frame
 ```python
 gamers_df = spark.createDataFrame(pd.DataFrame(gamers))
 ```
@@ -557,7 +557,7 @@ birthdate_cast = date_format('birth_date','yyyyMMdd').cast('int').alias('birthda
 gamers_df.select(birthdate_cast)
 ```
 
-### 2. Renaming Pyspark DataFrame Columns (or Expressions)
+### 2. Renaming Data Frame Columns (or Expressions)
 What are the ways that we can rename columns/expressions:
 - Using `alias` on `select`.
 - Add or rename column using `withColumn` (*row-level transformation*).
@@ -615,7 +615,7 @@ gamers_df.\
 # | id | name | lastname | phones | videogames |
 ```
 ---
-## Manipulating Columns
+## Manipulating Columns on Spark Data Frames
 ### 1. Categories of Functions
 
 These are the categories of functions offered by `pyspark.sql.functions`
@@ -922,7 +922,7 @@ students_df.\
     withColumn("gpa3",expr("nvl(nullif(gpa,''),0)")).\
 ```
 
-### 6. CASE / WHEN
+### 6. Case / When statements
 #### Option 1: using `expr`
 ```python
 grades = [(1,20),(2,14),(3,15),(4,8)]
@@ -950,7 +950,7 @@ grades_df.\
                             .otherwise(lit("GOOD JOB!")))
 ```
 ---
-## Filtering Pyspark DataFrame
+## Filtering Spark Data Frames
 ###### Creating Data Frame
 ```python
 import datetime
@@ -1076,8 +1076,8 @@ gamers_df.filter('total_amount >= 100 AND total_amount IS NOT NULL')
 ```
 
 ---
-## Droping Columns and Rows in Pyspark
-###### Creating DataFrame
+## Droping Columns and Rows of Spark Data Frames
+###### Creating Data Frame
 ```python
 import datetime
 from pyspark.sql.functions import Row
@@ -1167,8 +1167,8 @@ gamers_df.na.drop(how = 'any',subset = ['id','email'])
 ```
 
 ---
-## Sorting Data in Spark
-###### Creating DataFrame
+## Sorting Data in Spark Data Frames
+###### Creating Data Frame
 ```python
 import datetime
 from pyspark.sql.functions import Row
@@ -1297,7 +1297,7 @@ when_statement = expr("""
 gamers_df.sort(when_statements,col('first_name').desc())
 ```
 
-## Performing Aggregations on Pyspark
+## Performing Aggregations on Spark Data Frames
 
 ### Overview
 What are the commom aggregate functions available?
