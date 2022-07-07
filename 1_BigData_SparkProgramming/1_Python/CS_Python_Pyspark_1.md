@@ -1380,6 +1380,379 @@ gamers_orders_df_grouped.\
 #we can apply filters before making the aggregations
 gamers_orders_df.filter('videogame_genre == "ACTION"').agg(sum('total_amount'))
 ```
+---
+## Joining on Spark Data Frame
+
+#### `join` function
+```python
+gamers_orders_df.\
+    join(gamers_df, gamers_orders_df.customer_id == gamers_df.id)
+
+gamers_orders_df.\
+    join(gamers_df,'customer_id') #Only works when both df have the same column name to join
+
+gamers_orders_df.\
+    join(gamers_df,gamers_orders_df.customer_id == gamers_df.id).\
+    select(gamers_orders_df['*'], gamers_df["first_name"],gamers_df["last_name"])
+
+#using alias
+gamers_orders_df.alias('go').\
+    join(gamers_df.alias('g'),gamers_orders_df.customer_id == gamers_df.id).\
+    select('go.*','g.first_name','g.last_name')
+
+#using groupBy
+from pyspark.sql.functions import count, concat, lit
+gamers_orders_df.alias('go').\
+    join(gamers_df.alias('g'),gamers_orders_df.customer_id == gamers_df.id).\
+    select('go.*',concat('g.first_name',lit(','),'g.last_name').alias('full_name')).\
+    groupBy('full_name').\
+    count()
+
+gamers_df.\
+    withColumnRenamed('id','customer_id').\
+    join(gamers_orders_df, 'customer_id').\
+    groupBy(gamers_orders_df['customer_id']).\
+    count()
+```
+
+#### outer `join` function
+```python
+gamers_orders_df.\
+    join(gamers_df, gamers_orders_df.customer_id == gamers_df.id, 'left')
+
+gamers_orders_df.\
+    join(gamers_df, gamers_orders_df.customer_id == gamers_df.id, 'left_outer')
+
+gamers_orders_df.\
+    join(gamers_df, gamers_orders_df.customer_id == gamers_df.id, 'leftouter')
+
+#Avoiding the nulls rows from the right table
+gamers_df.alias('customer').\
+    join(gamers_orders_df.alias('orders'),gamers_df.id == gamers_orders_df.customer_id,'left').\
+    filter('orders.order_id IS NOT NULL').\
+    select('orders.*','customer.first_name','customer.last_name')
+
+#using groupBy and aggregations
+from pyspark.sql.functions import sum, when
+gamers_df.alias('customer').\
+    join(gamers_orders_df.alias('orders'),gamers_df.id == gamers_orders_df.customer_id,'left').\
+    groupBy('customer_id.id').\
+    agg(sum(when(gamers_orders_df['order_id'].isNotNull(),1).otherwise(lit(0))).alias('total_orders')).\
+    orderBy('customer_id.id')
+
+#using expr
+from pyspark.sql.functions import expr
+gamers_df.alias('customer').\
+    join(gamers_orders_df.alias('orders'),gamers_df.id == gamers_orders_df.customer_id,'left').\
+    groupBy('customer_id.id').\
+    agg(sum(expr(
+            """
+                CASE WHEN orders.order_id IS NULL THEN 0 ELSE 1 END
+            """
+        )).alias('total_orders')
+    ).\
+    orderBy('customer_id.id')
+```
+###### The same will work with using `right`,`right_outer` or `rightouter` on the third parameter 
+#### `full` join function
+```python
+gamers_source1_df.\
+    join(gamers_source2_df, 'email','full')
+
+#Full outer join can be express as a left with right join united
+gamers_source1_df.\
+    join(gamers_source2_df, 'email', 'left').\
+    union(
+        gamers_source1_df.\
+            join(gamers_source2_df, 'email', 'right')
+    )
+
+from pyspark.sql.functions import coalesce
+gamers_source1_df.\
+    join(gamers_source2_df, 'email', 'full').\
+    select(
+        coalesce(gamers_source1_df['first_name'],gamers_source2_df['first_name']).alias('first_name'),
+        coalesce(gamers_source1_df['last_name'],gamers_source2_df['last_name']).alias('last_name')
+    )
+
+gamers_source1_df.alias('s1').\
+    join(gamers_source2_df.alias('s2'), 'email', 'full').\
+    select(
+        coalesce('s1.first_name','s2.first_name').alias('first_name'),
+        coalesce('s1.last_name','s2.last_name').alias('last_name')
+    )
+```
+
+#### Broadcast join
+Some important things to mention
+- Also known as *map side* or *replication join*
+- The **smaller data** is going to be broadcasted (replicated) to all workers (executors) in the cluster
+- How to set the size of the smaller data to be broadcasted? Use `spark.sql.autoBroadcastJoinThreshold`
+- What can we do if the size of the smaller data is greater than the parameter? Use `broadcast` function
+- How can we disable this parameter? Set `spark.sql.autoBroadcastJoinThreshold` to 0
+- Broadcaste disable == Reduce side join
+```python
+spark.conf.set('spark.sql.autoBroadcastJoinThreshold') #setting to 10MB
+spark.conf.set('spark.sql.autoBroadcastJoinThreshold','0') #disabling broadcasting
+spark.conf.set('spark.sql.autoBroadcastJoinThreshold','10485760b') 
+
+from pyspark.sql.functions import broadcast
+broadcast(smaller_size_df).join(big_size_df,'column_to_join')
+```
+
+#### `crossJoin` function
+Cross Join = Cartesian Product
+```python
+df1.\
+    crossJoin(df2)
+
+df1.\
+    join(df2,how='cross')
+```
+
+---
+## Reading Data from Files to Spark Data Frame
+#### Basic Examples
+```python
+#Read CSV file
+order_schema = """
+            order_id INT,
+            order_date TIMESTAMP,
+            order_gamer_id INT,
+            order_status STRING
+         """
+
+gamers_orders_df = spark.read.schema(order_schema).csv('/path/orders')
+
+#Reading Json Files
+gamers_orders_df = spark.read.json('/path/orders.json')
+```
+
+#### Trick: How to convert a json file to a parquet file with read/write in a while
+```python
+input_dir = '--' #directory of the inputs
+outputs_dir = '--' #directory of the outputs
+
+for file_details in dbutils.ls(input_dir):
+    #if we are working on a git repository already cloned 
+    #or
+    #the file name is not a sql file (.sql)
+    if not ('.git' in file_details.path | files_details.path.endswith('sql')):
+        print(f'converting data in {file_details.path} folder from json to parquet')
+        data_set_dir = file_details.path.split('/')[-2]
+        #read the json file
+        df_read = spark.read.json(file_details.path)
+        #write to a parquet file
+        df_read.coalesce(1).write.parquet(f'{output_dir}/{data_set_dir}', mode = 'overwrite')
+```
+
+#### Trick: How to convert a csv file with comma separator to csv file with pipe separator
+```python
+input_dir = '--' #directory of the inputs
+outputs_dir = '--' #directory of the outputs
+
+for file_details in dbutils.ls(input_dir):
+    #if we are working on a git repository already cloned 
+    #or
+    #the file name is not a sql file (.sql)
+    if not ('.git' in file_details.path | files_details.path.endswith('sql')):
+        print(f'converting data in {file_details.path} folder from json to parquet')
+        #read the json file
+        df_read = spark.read.csv(file_details.path)
+        #obtain folder name
+        folder_name = file_details.path.split('/')[-2]
+        #write to a parquet file
+        df_read.coalesce(1).write.mode('overwrite').csv(f'{output_dir}/{folder_name}',sep='|')
+```
+
+As we can see, we use the `read` function (we are using spark APIs)
+- `format` is to define the file input format and `load` is to define the file path
+- Supported file formats: `csv`, `text`, `json`, `parquet`, `orc`
+- Other commom files: `xml`, `avro`
+- We can read compressed files
+
+### 1 .Reading CSV Files
+Some important things:
+- We can explicitly specify the schema as `string` or using `StructType`.
+- We can read csv that are delimited by different characters or symbols.
+- Your csv has header? use the `header` parameter in the `options` function.
+- `inferSchema`: spark will assume the column data types based on the file.
+
+```python
+#Alternative 1:
+spark.read.csv('path')
+#Alternative 2:
+spark.read.format('csv').load('path')
+```
+
+#### Specifying schema
+```python
+schema_df = """Setting_schema (COLUMN DATATYPE,...)"""
+#Alternative 1:
+spark.read.schema(schema_df).csv('path_to_file')
+#Alternative 2:
+spark.read.csv('path_to_file',schema = schema_df)
+
+#Using StructType and StructField and Spark Data Types
+from pyspark.sql.functions import StructType, StructField, IntegerType, TimestampType, StringType
+
+#Using StructType
+schema_df = StructType([
+                StructField('order_id',IntegerType(),nullable = False),
+                StructField('order_date',TimestampType(),nullable = False),
+                StructField('order_gamer_id',IntegerType(), nullable = False),
+                StructField('order_status',StringType(), nullable = False)
+            ]) 
+
+spark.read.schema(schema_df).csv('path_to_file')
+spark.read.csv('path_to_file',schema = schema_df)
+```
+
+#### Using `toDF` and `inferSchema`
+```python
+columns = ['order_id','order_date','order_gamer_id','order_status']
+
+spark.read.option('inferSchema',True).csv('path_to_file')
+#or
+spark.read.csv('path_to_file',inferSchema = True)
+
+spark.read.option('inferSchema',True).csv('path_to_file').toDF('order_id','order_dat','order_gamer_id','order_status')
+#or
+spark.read.option('inferSchema',True).csv('path_to_file').toDF(*columns)
+```
+
+#### Specifying delimiter
+```python
+schema_df = """Setting_schema (COLUMN DATATYPE,...)"""
+
+spark.read.schema(schema_df).csv('path_to_file', sep = '|')
+#or
+spark.read.csv('path_to_file', sep = '|', schema = schema_df)
+```
+
+#### Using `option` and `options`
+```python
+columns = ['order_id','order_date','order_gamer_id','order_status']
+
+orders = spark. \
+            read. \
+            csv(
+                'path_to_file',
+                header = None,
+                inferSchema = True
+            ).\
+          toDF(*columns)
+
+#using format
+orders = spark. \
+            read. \
+            format('csv'). \
+            load(
+                'path_to_file',
+                sep = '|',
+                header = None,
+                inferSchema = True
+            ).\
+          toDF(*columns)
+
+#using option
+orders = spark.\
+         read.\
+         option('sep','|'),
+         option('header',None),
+         option('inferSchema',True).\
+         csv('path_to_file').\
+         toDF(*columns)
+
+#using options
+orders = spark.\
+         read.\
+         options(sep = '|', header= None, inferSchema = True).\
+         csv('path_to_file').\
+         toDF(*columns)
+
+#the options values can be set as a dictionary and can be used with **
+options = {
+    'sep':'|',
+    'header':None,
+    'inferSchema':True
+}
+
+orders = spark.\
+         read.\
+         options(**options).\
+         csv('path_to_file').\
+         toDF(*columns)
+#or
+orders = spark.\
+         read.\
+         options(**options).\ 
+         format('csv').\
+         load('path_to_file').\
+         toDF(*columns)
+```
+
+### 2. Reading Json Files
+
+#### Reading a Basic Json File
+```python
+orders = spark.read.json('path_to_file')
+#or
+orders = spark.read.format('json').load('path_to_file')
+```
+**You can use the same syntax for setting a schema (with string or Struct Type)**
+
+### Is it reasonable to use inferSchema?
+- The engine will need to make a preview read of the entire file just to infer the schema (this will cost time and processing)
+- When we specified a schema, the data won't be read until the data frame is created.
+- Schema can be inferred by default for files of Json, Parquet and Orc files (using metadata).
+- inferSchema = True -> spark will generate default columns name (c0_, c1_, etc).
+- inferSchema = True and csv contains header -> the column name are going to be inherited (if no header, we can use toDF function)
+
+### 3. Reading Parquet Files
+```python
+orders = spark.read.parquet('path_to_file')
+#or
+orders = spark.read.format('parquet').load('path_to_file')
+```
+
+#### Some considerations for the schema
+```python
+schema = """
+    order_id INT,
+    order_date TIMESTAMP,
+    order_customer_id INT,
+    order_status STRING
+"""
+spark.read.schema(schema).parquet('path_to_file')
+# This will fail because INT64 is unsupported due to the size of the numeric values
+```
+```python
+schema = """
+    order_id BIGINT,
+    order_date TIMESTAMP,
+    order_customer_id BIGINT,
+    order_status STRING
+"""
+spark.read.schema(schema).parquet('path_to_file')
+# This will file due that we cannot cast timestramp from string of a parquet file
+```
+###### Best Solution:
+```python
+from pyspark.sql.functions import StructType, StructField, IntegerType, StringType
+schema = StructType([
+        StructField('order_id',IntegerType()),
+        StructField('order_date',StringType()),
+        StructField('order_gamer_id',IntegerType()),
+        StructField('order_status',StringType()),
+])
+
+gamer_order_df = spark.read.schema(schema).parquet('path_to_file')
+#Finally, we cast the string date to timestamp
+from pyspark.sql.functions import col
+gamer_order_df = gamer_order_df.withColumn('order_date',col('order_date').cast('timestamp'))
+
+```
 
 ###### Reference
 > Raju, D. Databricks Certified Associate Developer - Apache Spark 2022 [Online Course]. Udemy
