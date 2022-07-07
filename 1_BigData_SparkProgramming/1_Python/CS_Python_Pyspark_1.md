@@ -1751,6 +1751,174 @@ gamer_order_df = spark.read.schema(schema).parquet('path_to_file')
 #Finally, we cast the string date to timestamp
 from pyspark.sql.functions import col
 gamer_order_df = gamer_order_df.withColumn('order_date',col('order_date').cast('timestamp'))
+```
+## Writing Files from Spark Data Frame to Files
+### Overview
+- We can use the direct API's like `json` and `csv` under `df.write`.
+- Other way, we can use `format` and `save` under `df.write`.
+- Same as read, we can use `option` and `options` command.
+- Support file formats: `csv`,`json`,`text`,`parquet`,`orc` (other commom file formats: `xml`,`avro`)
+
+**Some Considerations**
+- Be sure about the permissions you grant to the targe location.
+- Define is you are goint to overwrite or append properly.
+- Put compression as a consideration.
+
+### 1. Writing Spark Data Frame into CSV Files
+```python
+
+#create a data frame
+from pyspark.sql.functions import Row
+gamers = [{"Fill data"}]
+gamers_df = spark.createDataFrame([Row(**gamer) for gamer in gamers])
+
+#writing to csv files (basic)
+gamers_df.write.csv('path_to_file')
+#or
+gamers_df.write.format('csv').save('path_to_file')
+
+#if you want to check your files
+dbutils.fs.ls('path_to_file')
+
+#if you want to remove all the files inside the folder
+dbutils.fs.rm('path_to_file',recurse=True)
+```
+
+#### Specifying header and write mode
+```python
+gamers_df.\
+    coalesce(1).\
+    write.\
+    format('csv').\
+    save('path_to_file',mode = 'overwrite', header = True)
+```
+
+#### Using Compression
+```python
+gamers_df.\
+    coalesce(1).\
+    write.\
+    save(
+        'path_to_file',
+        mode = 'overwrite',
+        compression = 'gzip',
+        header = True
+    )
+#most commom: snappy
+gamers_df.\
+    coalesce(1).\
+    write.\
+    save(
+        'path_to_file',
+        mode = 'overwrite',
+        compression = 'snappy',
+        header = True
+    )
+```
+
+#### Specifying delimiter
+```python
+df_read = spark.read.csv('path_to_file')
+
+df_read.write.mode('overwrite').csv('path_to_file', sep = '|')
+```
+
+#### Specifying Writing options
+```python
+gamers_df.\
+    coalesce(1).\
+    write.\
+    mode('overwrite').\
+    option('compression','snappy').\
+    option('header',True).\
+    option('sep','|').\
+    csv('path_to_file')
+
+options = {
+        'sep':'|',
+        'header':True,
+        'compression':'snappy'
+        }
+
+gamers_df.\
+    coalesce(1).\
+    write.\
+    mode('overwrite').\
+    options(**options).\
+    csv('path_to_file')
+```
+
+### 2. Writing Spark Data Frame into Json Files
+```python
+#using the API
+gamers_df.\
+    coalesce(1).\
+    write.\
+    json(
+        'path_to_file',
+        mode = 'overwrite',
+        compression = 'snappy'
+    )
+#using format
+gamers_df.\
+    coalesce(1).\
+    write.\
+    format('json').\
+    save('path_to_file',mode='overwrite',compression = 'snappy')
+```
+
+### 3. Writing Spark Data Frame into Parquet Files
+```python
+#using the API
+gamers_df.\
+    coalesce(1).\
+    write.\
+    parquet(
+        'path_to_file',
+        mode = 'overwrite',
+        compression = 'none'
+    )
+#using format
+spark.conf.set('spark.sql.parquet.compression.codec','none')
+gamers_df.\
+    coalesce(1).\
+    write.\
+    format('parquet').\
+    save('path_to_file',mode='overwrite')
+```
+
+So...
+We see different ways to write into files
+* `courses_df.write.mode(saveMode).file_format(path_to_folder)`
+* `courses_df.write.file_format(path_to_folder, mode=saveMode)`
+* `courses_df.write.mode(saveMode).format('file_format').save(path_to_folder)`
+* `courses_df.write.format('file_format').save(path_to_folder, mode=saveMode)`
+
+Remember that there 2 important modes to write (overwrite and append)
+
+### You may notice a `coalesce` on every write...
+
+- `coalesce` is used to reduced number of partitions to deal with as part of downstream processing
+- `repartition` is used to *reshuffle* the data to **higher or lower number of partitions**
+
+#### Some useful things (with `coalesce`)
+```python
+df = spark.read.csv('path_to_bigfile', header = True, inferSchema = True) #for example this df has 93 partitioned files
+
+#get number of partitions
+df.rdd.getNumPartitions() 
+
+#reducing to a number of partitions (just test purposes)
+df.coalesce(16).rdd.getNumPartitions()
+
+df.coalesce(186).rdd.getNumPartitions() #this won't work (spark will try to partition until the max size the data had - 93 )
+```
+#### Some useful things (with `repartition`)
+```python
+df.repartition(16).rdd.getNumPartitions() #this cost much time
+
+#partition by columns
+df.repartition(16,'Year','Month').rdd.getNumPartitions() #this cost much time
 
 ```
 
