@@ -1919,7 +1919,118 @@ df.repartition(16).rdd.getNumPartitions() #this cost much time
 
 #partition by columns
 df.repartition(16,'Year','Month').rdd.getNumPartitions() #this cost much time
+```
 
+## Partitioning Spark Data Frames
+
+*Consider that the function *`partitionBy` works for parquet and csv files (not for json files).
+
+#### Partitioning by Single Column
+```python
+from pyspark.sql.functions import date_format
+
+gamers_orders = spark.read.json('path_to_file')
+
+#partition by Date
+gamers_orders.\
+    withColumn('order_date',date_format('order_date','yyyyMMdd')).\
+    coalesce(1).\
+    partitionBy('order_date').\
+    parquet('path_to_file')
+
+#partition by Month
+gamers_orders.\
+    withColumn('order_month',date_format('order_date','yyyyMM')).\
+    coalesce(1).\
+    partitionBy('order_month').\
+    parquet('path_to_file')
+```
+
+#### Partitioning by Multiple Columns
+```python
+from pyspark.sql.functions import date_format
+
+gamers_orders = spark.read.json('path_to_file')
+
+#partition by Date
+gamers_orders.\
+    withColumn('order_date',date_format('order_date','dd')).\
+    withColumn('order_month',date_format('order_date','MM')).\
+    withColumn('order_year',date_format('order_date','yyyy')).\
+    coalesce(1).\
+    partitionBy('order_year','order_month','order_date').\
+    parquet('path_to_file')
+```
+
+#### Reading Files that are partitioned 
+```python
+#using databricks datasets (airlines)
+spark.read.csv('dbfs:/databrics-assets/asa/airlines',header = True).\
+    filter('Year = 2004').\
+    count() #7129270
+
+spark.read.csv('dbfs:/databrics-assets/asa/airlines/Year=2004',header = True).count() #7129270
+
+#other way
+airline_df = spark.read.csv('dbfs:/databrics-assets/asa/airlines',header = True)
+airline_df.createOrReplaceTempView("airlines")
+
+spark.sql('''
+    SELECT COUNT(1) FROM airlines WHERE year = 2004
+    ''').show()
+```
+
+## Spark SQL Functions
+Until now, we know that all SQL functions come from `pyspark.sql.functions`. However, a user can setup their own customize functions using UDFs.
+
+**What are the steps?**
+1. Develop the required logic using Python as PL.
+2. Register the function with `spark.udf.register` and assign it to a variable
+3. Variable can be used as part of `select` or `filter` that come from Data Frame APIs
+4. Remember, when we register a UDF, we register it with a name. That name can be used inside a `selectExpr` or `spark.sql` query.
+
+### Registering and using a UDF function
+
+```python
+#Define the UDF and assign it to a variable
+
+#this UDF convert a date into a int value with the format YYYYMMDD
+dc = spark.udf.register('date_convert', lambda d:
+                        int(d[:10].replace('-','')))
+```
+
+### Invoking the udf function
+
+#### using `select` function
+
+```python
+gamers_orders = spark.read.json('path_to_file')
+gamers_orders.select(dc('order_date').alias('order_date'))
+```
+
+#### using `filter` function
+
+```python
+gamers_orders.filter(dc('order_date') == '20220708')
+```
+
+#### using `groupBy` function
+
+```python
+from pyspark.sql.functions import count
+gamers_orders.\
+    groupBy(dc('order_date').alias('order_date')).\
+    count().\
+    withColumnRenamed('count','order_count')
+```
+
+#### using `selectExpr` and `spark.sql`
+```python
+#selectExpr
+gamers_orders.selectExpr("""order_id,
+                            date_convert(order_date) as order_date""")
+#spark.sql
+spark.sql
 ```
 
 ###### Reference
