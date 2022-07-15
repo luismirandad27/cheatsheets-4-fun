@@ -886,21 +886,21 @@ datetimeDF.\
     withColumn("day_format4",date_format("date","EEEE")) #Friday
 ```
 
-#### Using `unix_timestamp` and `from_timestamp`
+#### Using `unix_timestamp` and `from_unixtime`
 It is an integer and started from January 1st 1970. We can convert from unix timestamp to regular date/timestamp and viceversa
 
 Important observation: Spark 3.0 and later doesn't support conversion to unix_timestamp with format yyyy-MM-dd HH-mm-ss.SSS due to the 'SSS'
 
 ```python
-from pyspark.sql.functions import unix_timestamp, from_timestamp, col
+from pyspark.sql.functions import unix_timestamp, from_unixtime, col
 
-#using unix_timestamp
+#using unix_timestamp (converts from strint to timestamp)
 datetimeDF.\
     withColumn("unix_date_id",unix_timestamp(col('dateString').cast('string'),"yyyyMMdd")).\
     withColumn("unix_date",unix_timestamp("date","yyyyMMdd")).\
     withColumn("unix_time",unix_timestamp("time")) #with format: yyyy-MM-dd HH:mm:ss
 
-#using from_timestamp
+#using from_timestamp (convert from timestamp to string)
 unixtime = [(139356180, )]
 unixtimeDF = spark.createDataFrame(unixtime).toDF("unixtime")
 
@@ -1992,11 +1992,20 @@ Until now, we know that all SQL functions come from `pyspark.sql.functions`. How
 ### Registering and using a UDF function
 
 ```python
-#Define the UDF and assign it to a variable
+#Remember the order of the parameters for the udf.register
+#(name_of_udf, function, return type)
 
 #this UDF convert a date into a int value with the format YYYYMMDD
 dc = spark.udf.register('date_convert', lambda d:
                         int(d[:10].replace('-','')))
+
+#other way:
+from pyspark.sql.types import IntegerType
+
+def obtain_date (strVariable):
+    return int(strVariable[:10].replace('-',''))
+
+dc = spark.udf.register('date_convert',obtain_date, IntegerType())
 ```
 
 ### Invoking the udf function
@@ -2030,7 +2039,34 @@ gamers_orders.\
 gamers_orders.selectExpr("""order_id,
                             date_convert(order_date) as order_date""")
 #spark.sql
-spark.sql
+gamers_orders.createOrReplaceTempView('orders')
+
+spark.sql('''
+    SELECT o.*, date_convert(order_date) as order_date 
+    FROM orders AS o
+''')
+```
+
+#### Another approach: data cleaning
+```python
+#define a function that clean data string (remove leading and trailing whitespaces)
+
+def data_cleaning(c):
+    return c.strip() if c.strip() != '\\N' else None
+
+data_cleaning = spark.udf_register('data_cleaning',data_cleaning)
+
+from pyspark.sql.functions import col
+orders_df.select(
+    data_cleaning(col('order_id')).alias('order_id'),
+    data_cleaning(col('order_status')).alias('order_status')
+)
+
+orders_df.createOrReplaceTempView('orders')
+spark.sql('''
+    SELECT o.*,data_cleaning(o.order_status) AS order_status
+    FROM orders AS o
+''')
 ```
 
 ###### Reference
