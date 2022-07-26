@@ -14,17 +14,17 @@ df = spark.createDataFrame(lst_ages,"int")
 #### From String List
 ```python
 #Defining a list with string elements
-lst_names = ["luis","miguel","miranda"]
+lst_names = ["peter","mark","luis"]
 #Creating df based on the integer list
 df = spark.createDataFrame(lst_names,"string")
 ```
-#### Using Pyspark Data Types
+#### Using Pyspark SQL Data Types
 ```python
 #Importing pyspark data types library
-from pyspark.sql.types import StringType,IntegerType
+from pyspark.sql.types import StringType, IntegerType
 ```
 ```python
-#Creating df based on the integer list
+#Creating df based on the integer list / string list
 df_ages = spark.createDataFrame(lst_ages,IntegerType())
 df_names = spark.createDataFrame(lst_names,StringType())
 ```
@@ -37,6 +37,7 @@ df_ages = spark.createDataFrame(lst_ages_mc)
 df_ages = spark.createDataFrame(lst_ages_mc,'age int')
 ##C: DataFrame[age: int]
 
+#Mult-Column Data Frame
 lst_users = [(1,'Scoot'),(2,'Donald'),(3,'Mickey')]
 df_users = spark.createDataFrame(lst_users,"user_id int, user_name string")
 ```
@@ -47,7 +48,7 @@ df_users = spark.createDataFrame(lst_users,"user_id int, user_name string")
 from pyspark.sql import Row
 ```
 
-#### Convert List of List to Data Frame
+#### Convert List of Lists to Data Frame
 ```python
 lst_users = [[1,'Scoot'],[2,'Ronald'],[3,'Mathew']]
 rows_user = [Row(*user) for user in lst_users]
@@ -66,10 +67,11 @@ spark.createDataFrame(rows_user,'user_id int, user_name string')
 #### Convert List of Dicts to Data Frame
 ```python
 lst_users = [
-    {'user_id':1, 'user_name':'luismi'},
-    {'user_id':2, 'user_name':'miranda'},
-    {'user_id':3, 'user_name':'dulanto'}
+    {'user_id':1, 'user_name':'peter'},
+    {'user_id':2, 'user_name':'marc'},
+    {'user_id':3, 'user_name':'luis'}
             ]
+
 rows_user = [Row(**user) for user in lst_users]
 spark.createDataFrame(rows_user)
 ```
@@ -78,27 +80,26 @@ spark.createDataFrame(rows_user)
 #### Defining a list of dictionaries
 ```python
 import datetime
-```
-```python
+
 users = [
     {
         "id": 1,
         "first_name": "Luis",
         "last_name" : "Miranda",
         "email": "lmirandad27@gmail.com",
-        "is_customer": True,
-        "amount_paid": 1200.38,
-        "customer_from": datetime.date(2021,1,15),
+        "is_graduated": False,
+        "gpa": 3.8,
+        "student_from": datetime.date(2022,5,8),
         "last_updated_ts": datetime.datetime(2021,2,10,1,15,0)
     },
     {
         "id": 2,
-        "first_name": "Gianella",
-        "last_name" : "Palacios",
-        "email": "gianella194@hotmail.com",
-        "is_customer": False,
-        "amount_paid": 1290.38,
-        "customer_from": datetime.date(2022,10,15),
+        "first_name": "Peter",
+        "last_name" : "Parker",
+        "email": "pparker199@hotmail.com",
+        "is_graduated": False,
+        "amount_paid": 4.0,
+        "student_from": datetime.date(2022,5,9),
         "last_updated_ts": datetime.datetime(2022,8,10,1,15,0)
     }
 ]
@@ -115,10 +116,17 @@ users_df.printSchema()
 ```python
 users_df.show()
 ```
+#### Making samples (subdataset)
+```python
+#withReplacement: False (the row will appear once) / True (the row will appear more than one)
+#fraction: % from the total that is going to be sampled.
+#seed
+users_df.sample(withReplacement = False,fraction = 0.5,seed=1234)
+```
 #### Showing columns and data types
 ```python
 users_df.columns
-#['id','first_name','last_name','email','is_customer','amount_paid','customer_from','last_updated_ts']
+#['id','first_name','last_name','email','is_graduated','gpa','student_from','last_updated_ts']
 users_df.dtypes
 '''
     [
@@ -126,10 +134,10 @@ users_df.dtypes
         ('first_name','string'),
         ('last_name','string'),
         ('email','string'),
-        ('is_customer','boolean'),
-        ('amount_paid','double'),
-        ('customer_from','date'),
-        ('last_updatet_ts','timestamp')
+        ('is_graduated','boolean'),
+        ('gpa','double'),
+        ('student_from','date'),
+        ('last_updated_ts','timestamp')
     ]
 '''
 ```
@@ -140,9 +148,9 @@ user_schema = '''
     first_name STRING,
     last_name STRING,
     email STRING,
-    is_customer BOOLEAN,
-    amount_paid FLOAT,
-    customer_from DATE,
+    is_graduated BOOLEAN,
+    gpa FLOAT,
+    student_from DATE,
     last_updated_ts TIMESTAMP
 '''
 spark.createDataFrame(users,user_schema)
@@ -174,48 +182,22 @@ user_schema = StructType([
     StructField('first_name',StringType()),
     StructField('last_name',StringType()),
     StructField('email',StringType()),
-    StructField('is_customer',BooleanType()),
-    StructField('amount_paid',FloatType()),
-    StructField('customer_from',DateType()), StructField('last_updated_ts',TimestampType()),
+    StructField('is_gradudate',BooleanType()),
+    StructField('gpa',FloatType()),
+    StructField('student_from',DateType()), StructField('last_updated_ts',TimestampType()),
 ])
 
 spark.createDataFrame(users,schema = user_schema)
 ```
 
 ### 5. Creating Data Frame with Pandas
-#### Defining a List of dictionaries
-```python
-import datetime
-```
-```python
-users = [
-    {
-        "id": 1,
-        "first_name": "Luis",
-        "last_name" : "Miranda",
-        "email": "lmirandad27@gmail.com",
-        "is_customer": True,
-        "amount_paid": 1200.38,
-        "customer_from": datetime.date(2021,1,15),
-        "last_updated_ts": datetime.datetime(2021,2,10,1,15,0)
-    },
-    {
-        "id": 2,
-        "first_name": "Gianella",
-        "last_name" : "Palacios",
-        "email": "gianella194@hotmail.com",
-        "is_customer": False,
-        "amount_paid": 1290.38,
-        "customer_from": datetime.date(2022,10,15),
-        "last_updated_ts": datetime.datetime(2022,8,10,1,15,0)
-    }
-]
-```
+
 #### Creating Data Frame with Pandas
 ```python
 import pandas as pd
 ```
 ```python
+#using the 'users' dictionary previously set
 users_df = spark.createDataFrame(pd.DataFrame(users))
 ```
 
@@ -225,9 +207,6 @@ users_df = spark.createDataFrame(pd.DataFrame(users))
 
 #### `Array` data type
 
-```python
-import datetime
-```
 ```python
 users = [
     {
@@ -258,10 +237,8 @@ users_df.dtypes
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
-```
-```python
-#using col
 
+#using col
 users_df.\
     select('id',col('phone_numbers')[0].alias('mobile')),col('phone_numbers')[1].alias('home')
 
@@ -277,9 +254,6 @@ users_df.\
 ```
 
 #### `Map` Type
-```python
-import datetime
-```
 ```python
 users = [
     {
@@ -311,10 +285,8 @@ users_df.dtypes
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
-```
-```python
-#using col
 
+#using col
 users_df.\
     select('id',col('phone_numbers')['mobile'].alias('mobile')),col('phone_numbers')['home'].alias('home')
 
@@ -332,9 +304,6 @@ users_df.\
 ```
 
 #### `Struct` Type
-```python
-import datetime
-```
 ```python
 users = [
     {
@@ -366,10 +335,8 @@ users_df.dtypes
 #Using explode and explode_outer
 from pyspark.sql.functions import col
 from pyspark.sql.functions import explode, explode_outer
-```
-```python
-#using col
 
+#using col
 users_df.\
     select('id','phone_numbers.mobile','phone_numbers.home')
 
@@ -388,6 +355,7 @@ import datetime
 import pandas as pd
 ```
 ```python
+
 #Creating list of dictionaries
 gamers = [
     {
@@ -398,17 +366,17 @@ gamers = [
         "videogames":["fifa 22","pes 22"],
         "birth_date":datetime.date(1993,3,1),
         "last_update":datetime.datetime(2021,2,10,1,14,0),
-        "total_amount":100.10
+        "current_account_balance":68.9
     },
     {
         "user_id":2,
-        "user_name":"Mario Alonso",
-        "user_lastname":"Miranda",
+        "user_name":"Jhon",
+        "user_lastname":"Perez",
         "contact_info":Row(home="+1 999 888 1233"),
         "videogames":["fifa 22","diablo immortal"]
         "birth_date":datetime.date(2000,6,27),
         "last_update":datetime.datetime(2021,2,10,1,14,0),
-        "total_amount":999.21
+        "current_account_balance":120.88
     }
 ]
 ```
@@ -424,13 +392,13 @@ gamers_df = spark.createDataFrame(pd.DataFrame(gamers))
 
 ### Narrow/Wide Transformations
 
-Data structures are *immutable*, we cannot change them once created. The way we can modify this DataFrame is with *transformations*. There are 2 types:
+Data Frames are *immutable*, we cannot change them once created. With *transformations*, we are creating a new dataframe (keep in mind this). There are 2 types of transformations:
 
-**Narrow Transformations**: doesn't result in *shuffling*. Than means that all the transformation is operating in the each partition (any data movement will not occur). Also, Spark will make a process called *pipelining*, that means that every narrow operation will be executed *in-memory*.
+**Narrow Transformations**: doesn't result in *shuffling*. Than means that all the transformation is operating in the each partition (any data movement will not occur).
 
 **Wide Transformations**: result in *shuffling*. Means that, in the operation, many input partitions are being used to create different output partitions (writing on disk).
 
-In the following table, we could see the functions available for each type:
+In the following table, we could see the available functions for each type:
 
 
 
@@ -455,10 +423,10 @@ gamers_df.select('user_id','user_name','user_lastname')
 
 #Selecting specific columns of the df as a list
 gamers_df.select(['user_id','user_name','user_lastname'])
+
 #or (using * to retrieve the elements)
 cols = ['user_id','user_name','user_lastname']
 gamers_df.select(*cols)
-
 
 #Selecting specific columns using Pyspark DataFrame Columns
 gamers_df.select(gamers_df['user_id'],gamers_df['user_name'],gamers_df['user_lastname'])
@@ -474,7 +442,8 @@ gamers_df.alias('g').select(g['user_id'])
 #DataFrame column alias
 from pyspark.sql.functions import col
 gamers_df.select(col('user_id'),col('user_name'),col('user_lastname'))
-#Combining all variations
+
+#Combining all ways
 gamers_df.alias('g').select('g.user_id',g['user_name'],col('user_lastname'))
 ```
 
@@ -495,19 +464,19 @@ gamers_df.select(
 )
 ```
 
-#### More about `lit` function (type Pyspark Object Column)
+#### More about `lit` function
 ```python
-gamers_df.select('total_amount'+25) #ERROR: not same type
+gamers_df.select('current_account_balance'+25) #ERROR: not same type
 
-gamers_df.select('total_amount'+'25') #ERROR: there isn´t any column called total_amount25
+gamers_df.select('current_account_balance'+'25') #ERROR: there isn´t any column called current_account_balance25
 
-gamers_df.select('user_id','total_amount'+lit(2.0),lit(2.0)+lit(2.0))
+gamers_df.select('user_id','current_account_balance'+lit(2.0),lit(2.0)+lit(2.0))
 # 1 | Null | 4.0
 # 2 | Null | 4.0
 # Null result because Spark cannot performe arithmetics operation on noncompatible types
 
-#Right Way
-gamers_df.select(col('total_amount') + lit(2.0)) #same type
+#Correct Way
+gamers_df.select(col('current_account_balance') + lit(2.0)) #same type (this works)
 ```
 #### `selectExpr` function
 ```python
@@ -560,7 +529,7 @@ gamers_df.select(birthdate_cast)
 ### 2. Renaming Data Frame Columns (or Expressions)
 What are the ways that we can rename columns/expressions:
 - Using `alias` on `select`.
-- Add or rename column using `withColumn` (*row-level transformation*).
+- Add columns using `withColumn` (*row-level transformation*).
 - Rename column using `withColumnRenamed`.
 - Rename a bunch of columns using `toDF`
 
@@ -616,7 +585,7 @@ gamers_df.\
 ```
 ---
 ## Manipulating Columns on Spark Data Frames
-### 1. Categories of Functions
+### 1. Categories
 
 These are the categories of functions offered by `pyspark.sql.functions`
 
@@ -636,7 +605,10 @@ These are the categories of functions offered by `pyspark.sql.functions`
 * Aggregate Functions
     * `count`, `countDistinct`, `sum`, `avg`, `min` and `max`
 * Other Functions
-    * `CASE`/`WHEN`, `cast` and others...
+    * `CASE`/`WHEN`, `cast` and array functions
+
+You can check more about each function on the official documentation:
+https://spark.apache.org/docs/2.4.0/api/python/pyspark.sql.html#module-pyspark.sql.functions
 
 ### 2. How to get some help on Spark Functions?
 #### Use `help`
@@ -645,15 +617,14 @@ help(date_format)
 ```
 
 #### *Remember*...
-There are some functions that need to be called with a parameter as a Column Pyspark Type and not just a simple string, for example...
+There are some functions (methods) that need to be called from a Column Type Object and not just from a simple string, for example...
 ```python
 #Using upper and desc for the example
 from pyspark.sql.functions import upper, desc, col, lit
 
 students = [
             (1,"Luis","Miranda",3.4,"peru","+1 236 999 9999"),
-            (2,"Gianella","Palacios",3.8,"peru","+1 778 999 9999"),
-            (3,"Mario","Miranda",3.4,"peru","+51 999 999 999")
+            (2,"Jhon","Perez",3.8,"peru","+1 778 999 9999")
            ]
 
 students_df = spark.\
@@ -748,7 +719,7 @@ df.select(lpad(lit("Hello"),6,"-"))
 ```
 
 #### Trimming
-To remove unnecessart characters from fixed length records.
+To remove unnecessary characters from fixed length records.
 We can use `expr` or `selectExpr` to use SparkSQL based trim functions.
 ```python
 from pyspark.sql.functions import col, trim, ltrim, rtrim, expr
@@ -887,9 +858,9 @@ datetimeDF.\
 ```
 
 #### Using `unix_timestamp` and `from_unixtime`
-It is an integer and started from January 1st 1970. We can convert from unix timestamp to regular date/timestamp and viceversa
+Unix Time Format is an integer and started from January 1st 1970. We can convert from unix timestamp to regular date/timestamp and viceversa
 
-Important observation: Spark 3.0 and later doesn't support conversion to unix_timestamp with format yyyy-MM-dd HH-mm-ss.SSS due to the 'SSS'
+**Important**: Spark 3.0 and later doesn't support conversion to unix_timestamp with format yyyy-MM-dd HH-mm-ss.SSS due to the 'SSS'.
 
 ```python
 from pyspark.sql.functions import unix_timestamp, from_unixtime, col
@@ -933,7 +904,7 @@ from pyspark.sql.functions import expr
 grades_df.\
     withColumn("grade_type",expr("""
                                     CASE WHEN grade between 0 and 10 then 'failed'
-                                    WHEN grade between 11 and 14 then 'need to study more'
+                                    WHEN grade between 11 and 14 then 'good! you can do it better'
                                     ELSE 'GOOD JOB!"""))
 ```
 
@@ -963,11 +934,11 @@ gamers = [
         "user_name":"Luis Miguel",
         "user_lastname":"Miranda",
         "contact_info":Row(mobile="+1 312 312 3132", home="+1 999 888 1233"),
-        "videogames":["fifa 22","pes 22"],
+        "favorite_videogames":["fifa 22","pes 22"],
         "birth_date":datetime.date(1993,3,1),
         "last_update":datetime.datetime(2021,2,10,1,14,0),
-        "total_amount":100.10,
-        "is_videogame_fan":True,
+        "account_balance":100.10,
+        "is_premium_customer":True,
         "nationality": "Peru"
     },
     {
@@ -975,11 +946,11 @@ gamers = [
         "user_name":"Mario Alonso",
         "user_lastname":"Miranda",
         "contact_info":Row(home="+1 999 888 1233"),
-        "videogames":["fifa 22","diablo immortal"]
+        "favorite_videogames":["fifa 22","diablo immortal"]
         "birth_date":datetime.date(2000,6,27),
         "last_update":datetime.datetime(2021,2,10,1,14,0),
-        "total_amount":999.21,
-        "is_videogame_fan":True,
+        "account_balance":999.21,
+        "is_premium_customer":True,
         "nationality": "Peru"
     }
 ]
@@ -1021,40 +992,40 @@ spark.sql("""
 ### 2. Conditions and Operators
 ```python
 # -- Equals condition --
-gamers_df.filter(col("is_videogame_fan") == True)
+gamers_df.filter(col("is_premium_customer") == True)
 gamers_df.filter(col("user_name") == "Luis")
-gamers_df.filter("is_videogame_fan = 'false'") #Spark SQL condition
+gamers_df.filter("is_premium_customer = False") #Spark SQL condition
 gamers_df.createOrReplaceTempView("gamers_view")
 spark.sql("""
         SELECT * FROM gamers_view
-        WHERE is_videogame_fan = 'false'
+        WHERE is_premium_customer = False
     """)
 
 # Validate if value is NaN
-gamers_df.select('total_amount',isnan('total_amount'))
+gamers_df.select('account_balance',isnan('account_balance'))
 
 # -- Not Equals condition --
-gamers_df.filter(col("total_amount")!=1000.0)
-gamers_df.filter(col("total_amount").isNull())
+gamers_df.filter(col("account_balance")!=1000.0)
+gamers_df.filter(col("account_balance").isNull())
 
-gamers_df.filter((col('total_amount')!=1000.0) | (col('total_amount').isNull()))
-gamers_df.filter((col('total_amount')!=1000.0) | (col('total_amount') != ''))
-gamers_df.filter("total_amount != 1000.0 OR total_amount IS NULL")
+gamers_df.filter((col('account_balance')!=1000.0) | (col('account_balance').isNull()))
+gamers_df.filter((col('account_balance')!=1000.0) | (col('account_balance') != ''))
+gamers_df.filter("account_balance != 1000.0 OR account_balance IS NULL")
                  
 # -- Between condition --
-gamers_df.filter(col("total_amount").between(500,1500))
-gamers_df.filter("total_amount BETWEEN 500 AND 1500")
+gamers_df.filter(col("account_balance").between(500,1500))
+gamers_df.filter("account_balance BETWEEN 500 AND 1500")
                  
 # -- Null and Not Null Condition --
-gamers_df.filter(col('is_videogame_fan').isNull())
-gamers_df.filter("is_videogame_fan IS NULL")
+gamers_df.filter(col('is_premium_customer').isNull())
+gamers_df.filter("is_premium_customer IS NULL")
 
-gamers_df.filter(col('is_videogame_fan').isNotNull())
-gamers_df.filter("is_videogame_fan IS NOT NULL")
+gamers_df.filter(col('is_premium_customer').isNotNull())
+gamers_df.filter("is_premium_customer IS NOT NULL")
                  
 # -- Boolean Operators
-gamers_df.filter((col('total_amount')!=1000.0) | (col('total_amount') != '')
-gamers_df.filter("total_amount != 1000.0 OR total_amount IS NULL")
+gamers_df.filter((col('account_balance')!=1000.0) | (col('account_balance') != '')
+gamers_df.filter("account_balance != 1000.0 OR account_balance IS NULL")
                  
 # -- isIn Operator --
 gamers_df.filter(col('nationality').isIn('Peru','Canada',''))#empty values
@@ -1062,69 +1033,21 @@ gamers_df.filter("nationality IN ('Peru','Canada','')")
 gamers_df.filter("nationality IN ('Peru','Canada','',NULL)") #NULL will not work!
                  
 # -- Greater Than / Less Than Operators
-gamers_df.filter(col('total_amount')>100 & isnan(col('total_amount'))==False)
-gamers_df.filter(col('total_amount')<1000 & isnan(col('total_amount'))==False)
-gamers_df.filter(col('total_amount')>=100 & isnan(col('total_amount'))==False)
-gamers_df.filter(col('total_amount')<=1000 & isnan(col('total_amount'))==False)
+gamers_df.filter((col('account_balance')>100) & (isnan(col('account_balance'))==False))
+gamers_df.filter((col('account_balance')<1000) & (isnan(col('account_balance'))==False))
+gamers_df.filter((col('account_balance')>=100) & (isnan(col('account_balance'))==False))
+gamers_df.filter((col('account_balance')<=1000) & (isnan(col('account_balance'))==False))
                  
-gamers_df.filter('total_amount < 1000 AND total_amount IS NOT NULL')
-gamers_df.filter('total_amount > 100 AND total_amount IS NOT NULL')
-gamers_df.filter('total_amount <= 1000 AND total_amount IS NOT NULL')
-gamers_df.filter('total_amount >= 100 AND total_amount IS NOT NULL')
+gamers_df.filter('account_balance < 1000 AND account_balance IS NOT NULL')
+gamers_df.filter('account_balance > 100 AND account_balance IS NOT NULL')
+gamers_df.filter('account_balance <= 1000 AND account_balance IS NOT NULL')
+gamers_df.filter('account_balance >= 100 AND account_balance IS NOT NULL')
                  
 #Remember: AND (&) OR (|)
 ```
 
 ---
 ## Droping Columns and Rows of Spark Data Frames
-###### Creating Data Frame
-```python
-import datetime
-from pyspark.sql.functions import Row
-import pandas as pd
-
-gamers = [
-    {
-        "id": 1,
-        "first_name": "Luis",
-        "last_name": "Miranda",
-        "email": "email@domain.com",
-        "phone_numbers": Row(mobile="+1 999 999 8901", home="+1         888 888 8911"),
-        "videogames": ["Fifa Street", "COD Warzone"],
-        "is_videogame_fan": True,
-        "total_amount": 580.90,
-        "last_purchase_from": datetime.date(2022, 6, 30),
-        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
-    },
-    {
-        "id": 2,
-        "first_name": "Mario",
-        "last_name": "Miranda",
-        "email": "email@domain.com",
-        "phone_numbers": Row(mobile="+1 222 222 8901", home="+1         333 333 4444"),
-        "videogames": ["Fifa 22"],
-        "is_videogame_fan": True,
-        "total_amount": 239.90,
-        "last_purchase_from": datetime.date(2022, 6, 30),
-        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
-    },
-    {
-        "id": 3,
-        "first_name": "Hugo",
-        "last_name": "Mendoza",
-        "email": "email@domain.com",
-        "phone_numbers": Row(mobile="+1 444 444 8901", home="+1         555 666 8911"),
-        "videogames": ["NBA 2k22"],
-        "is_videogame_fan": True,
-        "total_amount":800.90,
-        "last_purchase_from": datetime.date(2022, 6, 30),
-        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
-    }
-]
-
-spark.conf.set('spark.sql.execution.arrow.pyspark.enabled',False)
-gamers_df = spark.createDataFrame(pd.DataFrame(gamers))
-```
 ### Overview
 #### `drop` function
 ```python
@@ -1168,55 +1091,6 @@ gamers_df.na.drop(how = 'any',subset = ['id','email'])
 
 ---
 ## Sorting Data in Spark Data Frames
-###### Creating Data Frame
-```python
-import datetime
-from pyspark.sql.functions import Row
-import pandas as pd
-
-gamers = [
-    {
-        "id": 1,
-        "first_name": "Luis",
-        "last_name": "Miranda",
-        "email": "email@domain.com",
-        "phone_numbers": Row(mobile="+1 999 999 8901", home="+1         888 888 8911"),
-        "videogames": ["Fifa Street", "COD Warzone"],
-        "is_videogame_fan": True,
-        "total_amount": 580.90,
-        "last_purchase_from": datetime.date(2022, 6, 30),
-        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
-    },
-    {
-        "id": 2,
-        "first_name": "Mario",
-        "last_name": "Miranda",
-        "email": "email@domain.com",
-        "phone_numbers": Row(mobile="+1 222 222 8901", home="+1         333 333 4444"),
-        "videogames": ["Fifa 22"],
-        "is_videogame_fan": True,
-        "total_amount": 239.90,
-        "last_purchase_from": datetime.date(2022, 6, 30),
-        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
-    },
-    {
-        "id": 3,
-        "first_name": "Hugo",
-        "last_name": "Mendoza",
-        "email": "email@domain.com",
-        "phone_numbers": Row(mobile="+1 444 444 8901", home="+1         555 666 8911"),
-        "videogames": ["NBA 2k22"],
-        "is_videogame_fan": True,
-        "total_amount":800.90,
-        "last_purchase_from": datetime.date(2022, 6, 30),
-        "last_updated_ts": datetime.datetime(2022, 7, 1, 1, 15,0)
-    }
-]
-
-spark.conf.set('spark.sql.execution.arrow.pyspark.enabled',False)
-gamers_df = spark.createDataFrame(pd.DataFrame(gamers))
-```
-
 #### `sort` function 
 ```python
 from pyspark.sql.functions import col
@@ -1230,9 +1104,9 @@ gamers_df.sort(col('first_name'))
 ##using an array column
 from pyspark.sql.functions import size
 gamers_df.\
-    select('id','first_name','last_name','videogames').\
-    withColumn('no_of_videogames',size('videogames')).\
-    sort(size('videogames'))
+    select('id','first_name','last_name','favorite_videogames').\
+    withColumn('no_of_videogames',size('favorite_videogames')).\
+    sort('no_of_videogames')
 
 ##setting descending sorting
 from pyspark.sql.functions import desc
@@ -1240,12 +1114,12 @@ gamers_df.sort('first_name',ascending=False)
 gamers_df.sort(desc('first_name'))
 gamers_df.sort(gamers_df['first_name'].desc())
 gamers_df.\
-    select('id','first_name','last_name','videogames').\
-    withColumn('no_of_videogames',size('videogames')).\
+    select('id','first_name','last_name','favorite_videogames').\
+    withColumn('no_of_videogames',size('favorite_videogames')).\
     sort('no_of_videogames',ascending = False)
 gamers_df.\
-    select('id','first_name','last_name','videogames').\
-    withColumn('no_of_videogames',size('videogames')).\
+    select('id','first_name','last_name','favorite_videogames').\
+    withColumn('no_of_videogames',size('favorite_videogames')).\
     sort(col('no_of_videogames').desc())
 ```
 
@@ -1281,7 +1155,7 @@ gamers_df.\
 ```python
 from pyspark.sql.functions import col, when
 
-when_statement = when(col('is_videogame_fan')== True,0).otherwise(1)
+when_statement = when(col('is_premium_customer')== True,0).otherwise(1)
 
 gamers_df.orderBy(when_statement,col('first_name').desc())
 
@@ -1289,7 +1163,7 @@ gamers_df.orderBy(when_statement,col('first_name').desc())
 from pyspark.sql.functions import expr
 
 when_statement = expr("""
-            CASE WHEN is_videogame_fan = True THEN 0
+            CASE WHEN is_premium_customer = True THEN 0
                  ELSE 1 
             END
 """)
@@ -1494,7 +1368,7 @@ Some important things to mention
 ```python
 spark.conf.set('spark.sql.autoBroadcastJoinThreshold') #setting to 10MB
 spark.conf.set('spark.sql.autoBroadcastJoinThreshold','0') #disabling broadcasting
-spark.conf.set('spark.sql.autoBroadcastJoinThreshold','10485760b') 
+spark.conf.set('spark.sql.autoBroadcastJoinThreshold','10485760') 
 
 from pyspark.sql.functions import broadcast
 broadcast(smaller_size_df).join(big_size_df,'column_to_join')
@@ -1565,7 +1439,6 @@ for file_details in dbutils.ls(input_dir):
         df_read.coalesce(1).write.mode('overwrite').csv(f'{output_dir}/{folder_name}',sep='|')
 ```
 
-As we can see, we use the `read` function (we are using spark APIs)
 - `format` is to define the file input format and `load` is to define the file path
 - Supported file formats: `csv`, `text`, `json`, `parquet`, `orc`
 - Other commom files: `xml`, `avro`
@@ -1735,7 +1608,7 @@ schema = """
     order_status STRING
 """
 spark.read.schema(schema).parquet('path_to_file')
-# This will file due that we cannot cast timestramp from string of a parquet file
+# This will file due that we cannot cast timestamp from string of a parquet file
 ```
 ###### Best Solution:
 ```python
@@ -1764,6 +1637,12 @@ gamer_order_df = gamer_order_df.withColumn('order_date',col('order_date').cast('
 - Define is you are goint to overwrite or append properly.
 - Put compression as a consideration.
 
+**Mode Types**
+- `overwrite`: overwrite the data
+- `append`: append the data
+- `ignore`: ignore the operation
+- `errorifexists`: stop the process in runtime
+
 ### 1. Writing Spark Data Frame into CSV Files
 ```python
 
@@ -1784,7 +1663,7 @@ dbutils.fs.ls('path_to_file')
 dbutils.fs.rm('path_to_file',recurse=True)
 ```
 
-#### Specifying header and write mode
+#### Specifying header and write mode 1 just ONE file
 ```python
 gamers_df.\
     coalesce(1).\
@@ -1894,12 +1773,12 @@ We see different ways to write into files
 * `courses_df.write.mode(saveMode).format('file_format').save(path_to_folder)`
 * `courses_df.write.format('file_format').save(path_to_folder, mode=saveMode)`
 
-Remember that there 2 important modes to write (overwrite and append)
+Remember that there 2 important modes to write (overwrite and append) ... there are more (ignore, errorifexists)
 
 ### You may notice a `coalesce` on every write...
 
-- `coalesce` is used to reduced number of partitions to deal with as part of downstream processing
-- `repartition` is used to *reshuffle* the data to **higher or lower number of partitions**
+- `coalesce` is used to reduced number of partitions to deal with as part of downstream processing (with this, we avoid shuffling)
+- `repartition` is used to make a *fully shuffle*, the data to **higher or lower number of partitions**
 
 #### Some useful things (with `coalesce`)
 ```python
@@ -1923,7 +1802,7 @@ df.repartition(16,'Year','Month').rdd.getNumPartitions() #this cost much time
 
 ## Partitioning Spark Data Frames
 
-*Consider that the function *`partitionBy` works for parquet and csv files (not for json files).
+Consider that the function `partitionBy` works for parquet and csv files (not for json files).
 
 #### Partitioning by Single Column
 ```python
@@ -1980,11 +1859,11 @@ spark.sql('''
     ''').show()
 ```
 
-## Spark SQL Functions
+## Spark User Defined Functions (UDF)
 Until now, we know that all SQL functions come from `pyspark.sql.functions`. However, a user can setup their own customize functions using UDFs.
 
 **What are the steps?**
-1. Develop the required logic using Python as PL.
+1. Develop the required logic using Python as programming language.
 2. Register the function with `spark.udf.register` and assign it to a variable
 3. Variable can be used as part of `select` or `filter` that come from Data Frame APIs
 4. Remember, when we register a UDF, we register it with a name. That name can be used inside a `selectExpr` or `spark.sql` query.
