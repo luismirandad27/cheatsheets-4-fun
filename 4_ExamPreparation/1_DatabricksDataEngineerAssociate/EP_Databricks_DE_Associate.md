@@ -55,7 +55,6 @@ Other topics related to *Delta Tables*:
 - Databricks can retain cluster config for *up to 200 all-purpose clusters* terminated in the last **30 days**, and *up to 30 job clusters* **recently terminated** (you can pin a cluster to the cluster list).
 
 #### a.1. Create a Cluster
-
 You can use the following options:
 - Cluster UI
 - Clusters API 2.0
@@ -63,3 +62,18 @@ You can use the following options:
     - Use the **Secrets API 2.0** to manage secrets in *Databricks CLI*.
     - Use the **Secrets utility** `dbutils.secrets` for referencing secrets in *notebooks* and *jobs*.
 - HashiCorp Terraform
+
+#### a.2. Manage a Cluster
+* A cluster is permanently deleted after 30 days it’s terminated.
+* To avoid this (for all-purpose clusters) the admin can **pin** the cluster (up to **100** can be pinned)
+* **Edit** a Cluster:
+	* Libraries installed remain after editing.
+	* You must restart the cluster if you edit any attribute while it’s running.
+	* Edito ONLY running or terminated clusters
+* **Clone** a Cluster: cannot clone *permissions*, *installed libraries* and *attached notebooks*.
+* **Control** access:
+	* Cluster creation permission (admin)
+	* Cluster-level permissions
+* **Autostart** clusters:
+	* When run a job related to a *terminated cluster*, the cluster is restarted.
+* **Autotermination** clusters
