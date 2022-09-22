@@ -37,7 +37,7 @@ Other topics related to *Delta Tables*:
 
 - For Data Analyst people -> you can use **Databricks SQL persona-based environment**
 
-#### <ins>Workspace</ins>
+#### WORKSPACE
 - Organize objects like *notebooks*, *libraries*, *experiments*, *queries* and *dashboards*.
 - Provides access to *data*
 - Provides computational resources like *clusters* and *jobs*
@@ -117,7 +117,7 @@ The `display()` has the following considerations:
 ##### Clearing Notebook States
 * **Clear** menu and select **Clear State & Clear Outputs**
 
-### 3. Delta Tables
+### DELTA TABLES
 
 ##### 1. Creating a Delta Table
 ```sql
@@ -247,4 +247,221 @@ SET spark.databricks.delta.vacuum.logging.enabled = true;
 
 VACUUM students RETAIN 0 HOURS DRY RUN
 --DRY RUN: to print out all records to be deleted
+```
+
+## Topic 2: Build ETL pipelines using Apache Spark SQL and Python
+
+### RELATIONAL ENTITIES
+
+##### 1. Creating a Schema
+```sql
+-- Method 1: without a location
+CREATE SCHEMA IF NOT EXISTS ${da.db_name}_default_location;
+-- It will store under dbfs:/user/hive/warehouse (with .db extension)
+
+CREATE SCHEMA IF NOT EXISTS ${da.db_name}_custom_location LOCATION ‘${da.paths.working_dir}/_custom_location.db’;
+```
+
+You can check the information of the schema with `DESCRIBE SCHEMA EXTENDED …`
+
+##### 2. Example using a schema
+```sql
+USE ${da.db_name}_default_location;
+
+CREATE OR REPLACE TABLE example_table (width INT, length INT, height INT);
+
+DESCRIBE DETAIL example_table;
+/* 
+it will store in:
+dbfs:/user/hive/warehouse/schema_name.db/example_table
+*/
+```
+
+Displaying the list of files of the table
+```python
+hive_root 	= f”dbfs:/user/hive/warehouse”
+db_name		= f”{DA.db_name}”_default_location.db”
+table_name 	= f”example_table”
+
+tbl_location = f”{hive_root}/{db_name}/{table_name}”
+print(tbl_location)
+
+files 		= dbutils.fs.ls(tbl_location)
+display(files)
+```
+
+If you **drop the table** the files will be deleted by the **schema remains**.
+
+##### 3. Tables
+First, we need to know the difference between *managed* and *unmanaged* tables
+- **Unmanaged Tables**: 
+	- Spark only manages the metadata and we control the data location
+	- A table is considered unmanaged if we add `path` option
+	- If we drop the table, **only the metadata will be dropped**
+	- Global -> available across all clusters
+- **Managed Tables**:
+	- Spark manages both data and metadata.
+	- Global -> available across all clusters
+	- If we drop the table, **both data and metadata will be dropped**
+
+```sql
+USE ${da.db_name}_default_location
+
+-- external table
+CREATE OR REPLACE TEMPORARY VIEW temp_delays USING CSV OPTIONS (
+	path 	= ‘${DA.paths_datasets}/flights/departuredelays.csv’,
+	header	= ‘true’,
+	mode 	= “FAILFAST” —-abort file parsing with RuntimeException  
+);
+
+CREATE OR REPLACE TABLE external_table LOCATION ‘{da.paths.working_dir}/external_table’ AS SELECT * FROM temp_delays;
+```
+
+- You can uso `SHOW TABLES` to list all tables
+
+##### 4. Views
+```sql
+CREATE VIEW view_delays_abq_lax AS
+	SELECT *
+	FROM external_table
+	WHERE origin = ‘ABQ’ AND destination = ‘LAX’;
+```
+- The view will appear in the `SHOW TABLES` result.
+
+```sql
+-- TEMPORARY VIEWS
+CREATE TEMPORARY VIEW temp_view_delays
+AS
+SELECT * 
+FROM external_table 
+WHERE delay > 120 ORDER BY delay ASC;
+```
+- `SHOW TABLES` will show that the temporary view has the isTemporary flag as true but is not assigned to a database.
+
+```sql
+-- GLOBAL VIEWS
+CREATE GLOBAL TEMPORARY VIEW temp_view_delays_gt
+AS
+SELECT * 
+FROM external_table 
+WHERE distance > 1000;
+```
+- To display the global views, you should type `SHOW TABLES in global_temp` because all global views are stored in the `global_temp` database.
+
+**Considerations**:
+- Temp vies are **tied** to a Spark Session, that means that are not accessible:
+	- After restarting a cluster
+	- After detaching and reattaching a cluster
+	- After installing a python package (python interpreter restarts)
+	- Using another notebook
+- For **global** views, the cluster holds the `global_temp` database .
+
+##### 5. Common Table Expression (CTEs)
+```sql
+-- Example 1
+WITH temp_table (
+	temp_column_1,
+	temp_column_2,
+	temp_column_3,
+) AS (
+	SELECT
+		column_1,
+		column_2,
+		column_3
+	FROM 
+		source_table
+)
+SELECT *
+FROM
+	temp_table
+WHERE
+	temp_column_1 > 1;
+```
+
+```sql
+-- Example 2
+WITH final_temp_table AS
+(
+	WITH temp_table (
+		temp_column_1,
+		temp_column_2,
+		temp_column_3,
+	) AS (
+	SELECT
+		column_1,
+		column_2,
+		column_3
+	FROM 
+		source_table
+	)
+	SELECT *
+	FROM
+		temp_table
+	WHERE
+		temp_column_1 > 1
+)
+SELECT count(temp_column_1) AS ‘Total’ FROM final_temp_table;
+```
+
+```sql
+-- Example 3
+SELECT max(temp_column_1), min(temp_column_1)
+FROM
+(
+	WITH temp_table (temp_column_1) AS (
+	SELECT
+		column_1
+	FROM 
+		source_table
+	)
+	SELECT temp_column_1 FROM temp_table
+)
+```
+
+```sql
+-- Example 4
+SELECT
+	(
+		WITH distinct_source_table AS (
+			SELECT DISTINCT origin_column FROM source table
+		)
+		SELECT
+			count(origin_column) as ‘Total’
+		FROM
+			distinct_source_table
+	)	AS ‘Number’
+```
+
+```sql
+-- Example 5 (with CREATE VIEW)
+CREATE OR REPLACE VIEW view_table
+AS 
+WITH origin_table(temp_column_1, temp_column_2)
+	AS (SELECT column_1, column_2 FROM source_table)
+	SELECT * FROM source_table
+	WHERE column_1 > 100;
+```
+
+### ETL PROCESSES
+
+##### 1. Querying Files
+```sql
+-- Querying a Single File
+SELECT * FROM file_format.`/path/to/file`;
+
+/* 
+* Querying a Directory
+* Consideration: the directory must have files with the same
+* format and schema
+*/
+SELECT * FROM file_format.`/path/to/`
+```
+- You can read json files put in `file_format` as `json`
+- There are some cases when the files lacks of standardization, so reading the files as json would not fit. In that case we can use `text` as the file format.
+- If you are dealing with images or unstructured data, you can use `binaryFile` as file format. 
+
+##### 2. Creating References to Files
+```sql
+CREATE OR REPLACE TEMP VIEW temp_view
+AS SELECT * FROM json.`/path/to/`;
 ```
