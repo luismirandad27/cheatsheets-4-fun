@@ -465,3 +465,385 @@ SELECT * FROM file_format.`/path/to/`
 CREATE OR REPLACE TEMP VIEW temp_view
 AS SELECT * FROM json.`/path/to/`;
 ```
+
+##### 3. Registering Tables on External Data with Read Options
+```sql
+CREATE TABLE sales_csv
+(order_id LONG, email STRING, transactions_timestamp LONG)
+USING CSV
+OPTIONS (
+	header 		= "true",
+	delimiter	= "|"
+)
+LOCATION "${DA.paths.sales_csv}"
+```
+
+You can specify the following:
+- The column types
+- The file format
+- The delimiter used
+- The presence of a header
+- The location of the files
+
+*There is no data movement*
+- The metadata and options passed during table declaration will be persisted to the metastore.
+- It’s **important** to not change the column order (there’s no schema enforcement)
+- To refresh the cache of our data, we can use `REFRESH TABLE table_name`
+
+##### 4. Extracting Data from SQL Databases
+```sql
+CREATE TABLE table_jdbc
+USING JDBC
+OPTIONS (
+	url = "jdbc:sqlite:${DA.paths.ecommerce_db}",
+	dbtable = "table",
+	user = "user_name",
+	password = "password"
+)
+```
+- The table has been listed as `MANAGED` so there is no data stored in the dbfs.
+- Could exist some significant overhead because of either:
+	- Network transfer latency
+	- Execution of query logic in source systems not optimized for big data queries.
+
+##### 5. Creating Delta Tables
+```sql
+-- as SELECT
+CREATE OR REPLACE TABLE sales AS
+SELECT * FROM
+parquet.`${da.paths.datasets}/ecommerce/raw/sales-historical`
+-- Here we are using a infer schema information
+
+-- When the infer schema is not correctly processed
+CREATE OR REPLACE TEMP VIEW sales_temp_view
+(order_id LONG, email STRING, transactions_timestamp LONG, ...)
+USING CSV
+OPTIONS (
+	path 		= "${da.paths.datasets}/ecommerce/raw/sales-csv",
+	header 		= "true",
+	delimiter	= "|"
+);
+
+CREATE TABLE sales AS
+	SELECT * FROM sales_temp_view;
+```
+
+```sql
+-- Renaming columns
+CREATE OR REPLACE TABLE purchases AS
+SELECT order_id AS id, transaction_timestamp, purchase_revenue_in_usd AS price
+FROM sales;
+```
+
+```sql
+-- Declaring schema and making comments
+CREATE OR REPLACE TABLE purchase_date (
+	id STRING,
+	transaction_timestamp LONG,
+	price STRING,
+	date DATE GENERATED ALWAYS AS (
+		cast(cast(transaction_timestamp/1e6 AS TIMESTAMP) AS 	DATE))
+	COMMENT "generated based on `transactions_timestamp` column"
+	) 
+)
+```
+
+```sql
+-- Adding constraints (2 types: NOT NULL and CHECK)
+ALTER TABLE purchase_dates ADD CONSTRAINT valid_date CHECK (date > '2020-01-01');
+-- This is store in the TBLPROPERTIES field
+```
+
+```sql
+-- A more complex example
+CREATE OR REPLACE TABLE users_pii
+COMMENT "Contains PII"
+LOCATION "${da.paths.working_dir}/tmp/users_pii"
+PARTITIONED BY (first_touch_date)
+AS
+	SELECT *,
+		cast(cast(user_first_touch_timestamp/1e6 AS TIMESTAMP)
+		AS DATE) first_touch_date,
+		current_timestamp() updated,
+		input_file_name() source_file
+	FROM parquet.`${da.paths.datasets}/ecommerce/raw/users-historical/`;
+```
+
+##### 6. Cloning Delta Lake Tables
+```sql
+-- Option 1: DEEP CLONE (copies data and metadata, this is incremental)
+CREATE OR REPLACE TABLE purchases_clone
+DEEP CLONE purchases
+```
+
+```sql
+-- Option 2: SHALLOW CLONE (copies Delta transactions logs)
+CREATE OR REPLACE TABLE purchases_clone
+SHALLOW CLONE purchases
+```
+
+##### 7. Writing to Delta Tables
+
+###### Overwriting
+- Some benefits of **overwriting** data:
+	- Is much faster because you will not list the directories recursively.
+	- You can use *Time Travel* to retrieve old data.
+	- It’s an atomic operation -> concurrent queries can read the data while you are deleting the table
+	
+```sql
+-- Option 1: Using CRAS
+CREATE OR REPLACE TABLE table AS
+SELECT * FROM parquet.`path/file`;
+
+-- If you want to check the previous states you can use:
+DESCRIBE HISTORY table;
+
+-- CRAS helps us to redefine the structure of the table
+```
+
+```sql
+-- Option 2: Using INSERT OVERWRITE
+INSERT OVERWRITE table
+SELECT * FROM parquet.`path/file`;
+
+-- If you want to check the previous states you can use:
+DESCRIBE HISTORY table;
+
+-- It will fail if we try to change the schema of the table
+```
+
+###### Appending
+```sql
+INSERT INTO table
+SELECT * FROM parquet.`path/file`;
+```
+
+###### Merging Updates
+```sql
+MERGE INTO table a
+USING source b
+ON {merge_condition}
+WHEN MATCHED THEN {matched_action}
+WHEN NOT MATCHED THEN {not_matched_action}
+```
+- Common use case: to insert not duplicate records.
+
+###### Copying incrementally
+```sql
+COPY INTO sales
+FROM `path/file`
+FILEFORMAT = PARQUET;
+```
+
+##### 8. Cleaning Data
+
+###### Inspecting Data
+```sql
+-- Using count
+SELECT 
+	count(column_1) AS count_column_1,
+	count(column_2) AS count_column_2,
+	count_if(column_1 IS NULL) AS count_if_column_1
+FROM
+	table_name;
+
+-- Using distinct
+SELECT count(DISTINCT(*)) FROM	table_name;
+SELECT count(DISTINCT(column_1)) FROM	table_name;
+```
+
+```sql
+-- Validation of datasets (similar like CASE WHEN)
+SELECT max(row_count) <= 1 no_duplicate_id FROM (
+	SELECT column_1, count(*) AS row_count
+	FROM table_name
+	GROUP BY column_1
+);
+```
+
+###### Date Format and Regex
+```sql
+SELECT *,
+	date_format(date_column, “MMM d, yyyy”) AS formatted_date,
+	date_format(date_column, “HH:mm:ss”) as formatted_time,
+	regexp_extract(email_column, “(?<=@).+”,0) as email_domain
+FROM (
+	SELECT *,
+		CAST(date_column_num / 1e6 AS timestamp) AS date_column
+	FROM table_name
+);
+```
+
+##### 9. Advanced SQL Transformations
+
+###### Casting to string: for cases of having binary-encoded JSON values
+```sql
+CREATE OR REPLACE TEMP VIEW events_string AS
+SELECT string(key), string(value)
+FROM events_raw;
+```
+
+###### For data stored as string but has a dictionary format
+```sql
+SELECT value:element1, value: element2
+FROM events_string;
+```
+You can use it also on the `WHERE` statement.
+
+###### Using `schema_on_json`
+```sql
+CREATE OR REPLACE TEMP VIEW parsed_events AS
+SELECT 
+from_json(original_column,schema_on_json('{
+"device":"MacOS",
+"ecommerce":{
+	"purchase_revenue_in_usd": 1075.5,
+	"total_item_quantity": 1,
+	"unique_items": 1,
+},
+"items":[
+{"coupon":"NEWBED10", "item_id":"M_STAN_K","price_in_usd":29.9}
+],
+"user_id": "123456"
+}')) AS json
+FROM events_string;
+
+-- You can read the info like this
+CREATE OR REPLACE TEMP VIEW parsed_events_final AS
+SELECT 
+	json.*
+FROM
+	parsed_events;
+```
+- This helps to provide a schema to a json column that has some sub-elements empty and you can define a sub-schema for them.
+
+###### Exploring Data Structures
+
+** Struct **
+```sql
+-- Reading fields from a STRUCT field
+SELECT 
+	ecommerce.purchase_revenue_in_usd,
+	ecommerce.total_item_quantity
+FROM parsed_events_final
+WHERE
+	ecommerce.purchase_revenue_in_usd > 199.99;
+```
+
+** Arrays**
+```sql
+-- Reading fields from ARRAY field
+SELECT *
+FROM parsed_events_final
+WHERE size(items) > 2;
+
+-- Using Explode
+SELECT
+	user_id,
+	device,
+	explode(items) AS item
+FROM parsed_events_final
+WHERE size(items) > 2;
+```
+
+*Remember*:
+- `collect_set`: collect unique values for a field.
+- `flatten`: multiple arrays can be combined into a single array
+- `array_distinct`: removes duplicate elements from an array
+*Use them on aggregations*
+
+```sql
+SELECT
+	user_id,
+	collect_set(event_name) as event_history,
+	array_distinct(flatten(collect_set(items.item_id))) AS cart_history
+FROM parsed_events_final
+GROUP BY
+	user_id
+```
+
+###### Join Tables
+```sql
+CREATE OR REPLACE VIEW sales_enriched AS
+SELECT *
+FROM (
+	SELECT *, explode(items) AS item
+	FROM sales
+) a
+INNER JOIN item_lookup b
+ON a.item.item_id = b.item_id;
+```
+
+###### Set Operators
+Not too much to mention, if you have some experience with SQL you may know `UNION`, `INTERSECT` and `MINUS`.
+
+###### Pivot Tables
+```sql
+CREATE OR REPLACE TABLE transaction AS
+SELECT * FROM (
+	SELECT
+		email,
+		order_id,
+		transaction_timestamp,
+		item.item_id AS item_id,
+		item.quantity AS quantity
+	FROM sales_enriched
+)	PIVOT (
+	sum(quantity) FOR item_id IN (
+		'P_FOAM_K',
+		'M_STAN_Q',
+		'P_FOAM_S',...
+	)
+)
+);
+```
+
+###### Higher Order Functions
+**Filter**
+Given a lambda function, we can make some filters inside an array
+```sql
+SELECT
+	order_id,
+	items,
+	FILTER(items, i -> i.item_id LIKE "%K") AS king_items
+FROM sales
+```
+
+**Transform**
+Given a lambda function,  transform all elements in an array
+```sql
+CREATE OR REPLACE TEMP VIEW king_item_revenues AS
+SELECT
+	order_id,
+	TRANSFORM (
+		items,
+		k -> CAST(k.item_reveneu_in_usd * 100 AS INT)
+	) AS item_revenues
+FROM king_size_sales;
+```
+
+Other operations that were not covered (with examples) on the Databricks Learning Notebooks are `reduce` and `exists`.
+
+##### 10. SQL UDFs
+```plsql
+CREATE OR REPLACE FUNCTION yelling(text STRING)
+RETURNS STRING
+RETURN concat(upper(text),"!!!")
+
+SELECT yelling(food) FROM foods;
+```
+
+- SQL UDFs persists between execution environments (notebooks, DBSQL queries and jobs).
+- You can view a detail of the function with `DESCRIBE FUNCTION function`.
+- To see the body of the function you can use `DESCRIBE FUNCTION EXTENDED function`.
+- To use SQL UDF, **a user must have `USAGE`and `SELECT` permissions**.
+
+```plsql
+CREATE FUNCTION foods_i_like(food STRING)
+RETURNS STRING
+RETURN CASE
+	WHEN food = "beans" THEN "I love beans"
+	...
+	ELSE concat("I don't eat ", food)
+END;
+```
