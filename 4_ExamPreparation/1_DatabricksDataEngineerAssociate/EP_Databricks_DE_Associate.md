@@ -1,14 +1,13 @@
 #  Databricks Data Engineer Associate
-#databricks #exampreparation #dataengineer
+#DataEng_Roadmap/Databricks
 
-## Topic 1: *Understand how to use and the benefits of using the Databricks Lakehouse Platform and its tools*
-- - - -
-### 1. What is the *Databricks Lakehouse*?
+## Topic 1: Understand how to use and the benefits of using the Databricks Lakehouse Platform and its tools
+### 1 What is the *Databricks Lakehouse*?
 
 - ACID transactions + data governance (from DWH).
 - Enables BI + Machine Learning
 
-#### <ins>Primary Components</ins>
+#### 1.1 Primary Components
 - **Delta tables**
     - Databricks uses the Delta Lake protocol **by default**
     - **When a Delta Table is created**:
@@ -26,18 +25,18 @@ Other topics related to *Delta Tables*:
 - ETL
 - Indexing
 
-#### <ins>Data Lakehouse vs Data Warehouse vs Data Lake</ins>
+#### 1.2 Data Lakehouse vs Data Warehouse vs Data Lake
 | Data Warehouse  | Data Lake  | Data Lakehouse  |
 |---|---|---|
 | Clean and structured data for BI Analytics  | Not for BI reporting due to its unvalidated nature  |  Low query latency and high reliability for BI/A |
 |  Manage property formats | Stores data of any nature in any format  | Deals with many standard data formats  |
 |   |   | ++ Indexis protocols optimized for ML and DS |
 
-### 2. Data Science and Engineering Workspace
+### 2 Data Science and Engineering Workspace
 
 - For Data Analyst people -> you can use **Databricks SQL persona-based environment**
 
-#### WORKSPACE
+#### 2.1 Workspace
 - Organize objects like *notebooks*, *libraries*, *experiments*, *queries* and *dashboards*.
 - Provides access to *data*
 - Provides computational resources like *clusters* and *jobs*
@@ -45,7 +44,7 @@ Other topics related to *Delta Tables*:
 - You can switch between workspaces.
 - You can view the **new** databricks SQL queries, dashboards and alerts. **BUT**, to view the existing ones you need to **migrate** them into the wkspace browser
 
-#### CLUSTERS (Databricks Computer Resource)
+#### 2.2 Clusters (Databricks Computer Resource)
 - Provide unified platform for many use cases: *production ETL*, *pipelines*, *streaming analytics*, *ad-hoc analytics* and *ML*.
 
 - **Cluster Types**:
@@ -70,7 +69,7 @@ Other topics related to *Delta Tables*:
 - **Terminate** -> *stop* but maintain same configurations so we can use **Restart** button to set new cloud resources.
 - **Delete** -> stop our cluster and remove the configurations.
 
-#### NOTEBOOKS
+#### 2.3 Notebooks
 
 ##### Attach to a cluster
 - Remember that a notebook provides **cell-by-cell execution of code**
@@ -117,15 +116,15 @@ The `display()` has the following considerations:
 ##### Clearing Notebook States
 * **Clear** menu and select **Clear State & Clear Outputs**
 
-### DELTA TABLES
+### 3 Delta Tables
 
-##### 1. Creating a Delta Table
+##### 3.1 Creating a Delta Table
 ```sql
 CREATE TABLE IF NOT EXISTS students
 	(id INT, name STRING, value DOUBLE);
 ```
 
-##### 2. Inserting Data (`COMMIT`is not required)
+##### 3.2 Inserting Data (`COMMIT`is not required)
 ```sql
 INSERT INTO students VALUES (1, "Yve", 1.0);
 --Inserting multiple rows in 1 INSERT
@@ -136,28 +135,28 @@ VALUES
 	(6, "Vini", 6.3)
 ```
 
-##### 3. Querying a Delta Table
+##### 3.3 Querying a Delta Table
 ```sql
 SELECT * FROM students
 ```
 * Every `SELECT`will return the **most recent version of the table**
 * Concurrent reads is limited only the **limitations** of object storage (depending on the cloud vendor).
 
-##### 4. Updating Records (1st snapshot 2nd update)
+##### 3.4 Updating Records (1st snapshot 2nd update)
 ```sql
 UPDATE students
 SET value = value + 1
 WHERE name LIKE "%T"
 ```
 
-##### 5. Deleting Records
+##### 3.5 Deleting Records
 ```sql
 DELETE students 
 WHERE value > 6
 ```
 * If you delete the entire table, you will see -1 as a result of the numbers of rows affected. This means an entire directory of data has been removed
 
-##### 6. Merge Records
+##### 3.6 Merge Records
 ```sql
 MERGE INTO students s
 USING students_updated u
@@ -170,12 +169,12 @@ WHEN NOT MATCHED AND u.type = "insert"
 	THEN INSERT *
 ```
 
-##### 7. Dropping Table
+##### 3.7 Dropping Table
 ```sql
 DROP TABLE students
 ```
 
-##### 8. Examining Table Details (Using the **Hive metastore**)
+##### 3.8 Examining Table Details (Using the **Hive metastore**)
 ```sql
 -- Show important metadata about our table (columns and partitioning)
 DESCRIBE EXTENDED students
@@ -203,7 +202,7 @@ DESCRIBE HISTORY students
 */
 ```
 
-##### 9. Explore Delta Lake FILES
+##### 3.9 Explore Delta Lake FILES
 ```python
 %python
 display(dbutils.fs.ls(f"{DA.paths.user_db}/students"))
@@ -223,7 +222,7 @@ The result displays 2 important columns:
 '''
 ```
 
-##### 10. Compacting Small Files and Indexing
+##### 3.10 Compacting Small Files and Indexing
 * `OPTIMIZE` command helps us to combine records and rewriting results 
 * We can **optionally** specify the field(s) for `ZORDER`indexing.
 ```sql
@@ -235,12 +234,12 @@ SELECT * FROM students
 VERSION AS OF 3
 ```
 
-##### 11. Rollback Versions
+##### 3.11 Rollback Versions
 ```sql
 RESTORE TABLE students TO VERSION AS OF 8
 ```
 
-##### 12. Purge Old Data Files
+##### 3.12 Purge Old Data Files
 ```sql
 SET spark.databricks.delta.retentionDurationCheck.enabled = false;
 SET spark.databricks.delta.vacuum.logging.enabled = true;
@@ -250,10 +249,9 @@ VACUUM students RETAIN 0 HOURS DRY RUN
 ```
 
 ## Topic 2: Build ETL pipelines using Apache Spark SQL and Python
+### 1. Relational Entities
 
-### RELATIONAL ENTITIES
-
-##### 1. Creating a Schema
+#### 1.1 Creating a Schema
 ```sql
 -- Method 1: without a location
 CREATE SCHEMA IF NOT EXISTS ${da.db_name}_default_location;
@@ -264,7 +262,7 @@ CREATE SCHEMA IF NOT EXISTS ${da.db_name}_custom_location LOCATION ‘${da.paths
 
 You can check the information of the schema with `DESCRIBE SCHEMA EXTENDED …`
 
-##### 2. Example using a schema
+#### 1.2 Example using a schema
 ```sql
 USE ${da.db_name}_default_location;
 
@@ -292,7 +290,7 @@ display(files)
 
 If you **drop the table** the files will be deleted by the **schema remains**.
 
-##### 3. Tables
+### 2. Tables
 First, we need to know the difference between *managed* and *unmanaged* tables
 - **Unmanaged Tables**: 
 	- Spark only manages the metadata and we control the data location
@@ -319,7 +317,7 @@ CREATE OR REPLACE TABLE external_table LOCATION ‘{da.paths.working_dir}/extern
 
 - You can uso `SHOW TABLES` to list all tables
 
-##### 4. Views
+#### 2.1 Views
 ```sql
 CREATE VIEW view_delays_abq_lax AS
 	SELECT *
@@ -356,7 +354,7 @@ WHERE distance > 1000;
 	- Using another notebook
 - For **global** views, the cluster holds the `global_temp` database .
 
-##### 5. Common Table Expression (CTEs)
+#### 2.2 Common Table Expression (CTEs)
 ```sql
 -- Example 1
 WITH temp_table (
@@ -442,9 +440,9 @@ WITH origin_table(temp_column_1, temp_column_2)
 	WHERE column_1 > 100;
 ```
 
-### ETL PROCESSES
+### 3. ETL Processes
 
-##### 1. Querying Files
+#### 3.1 Querying Files
 ```sql
 -- Querying a Single File
 SELECT * FROM file_format.`/path/to/file`;
@@ -460,13 +458,13 @@ SELECT * FROM file_format.`/path/to/`
 - There are some cases when the files lacks of standardization, so reading the files as json would not fit. In that case we can use `text` as the file format.
 - If you are dealing with images or unstructured data, you can use `binaryFile` as file format. 
 
-##### 2. Creating References to Files
+#### 3.2 Creating References to Files
 ```sql
 CREATE OR REPLACE TEMP VIEW temp_view
 AS SELECT * FROM json.`/path/to/`;
 ```
 
-##### 3. Registering Tables on External Data with Read Options
+#### 3.3 Registering Tables on External Data with Read Options
 ```sql
 CREATE TABLE sales_csv
 (order_id LONG, email STRING, transactions_timestamp LONG)
@@ -490,7 +488,7 @@ You can specify the following:
 - It’s **important** to not change the column order (there’s no schema enforcement)
 - To refresh the cache of our data, we can use `REFRESH TABLE table_name`
 
-##### 4. Extracting Data from SQL Databases
+#### 3.4 Extracting Data from SQL Databases
 ```sql
 CREATE TABLE table_jdbc
 USING JDBC
@@ -505,8 +503,8 @@ OPTIONS (
 - Could exist some significant overhead because of either:
 	- Network transfer latency
 	- Execution of query logic in source systems not optimized for big data queries.
-
-##### 5. Creating Delta Tables
+	
+#### 3.5 Creating Delta Tables
 ```sql
 -- as SELECT
 CREATE OR REPLACE TABLE sales AS
@@ -569,7 +567,7 @@ AS
 	FROM parquet.`${da.paths.datasets}/ecommerce/raw/users-historical/`;
 ```
 
-##### 6. Cloning Delta Lake Tables
+#### 3.6 Cloning Delta Lake Tables
 ```sql
 -- Option 1: DEEP CLONE (copies data and metadata, this is incremental)
 CREATE OR REPLACE TABLE purchases_clone
@@ -582,9 +580,9 @@ CREATE OR REPLACE TABLE purchases_clone
 SHALLOW CLONE purchases
 ```
 
-##### 7. Writing to Delta Tables
+#### 3.7 Writing to Delta Tables
 
-###### Overwriting
+##### Overwriting
 - Some benefits of **overwriting** data:
 	- Is much faster because you will not list the directories recursively.
 	- You can use *Time Travel* to retrieve old data.
@@ -612,13 +610,13 @@ DESCRIBE HISTORY table;
 -- It will fail if we try to change the schema of the table
 ```
 
-###### Appending
+##### Appending
 ```sql
 INSERT INTO table
 SELECT * FROM parquet.`path/file`;
 ```
 
-###### Merging Updates
+##### Merging Updates
 ```sql
 MERGE INTO table a
 USING source b
@@ -628,16 +626,16 @@ WHEN NOT MATCHED THEN {not_matched_action}
 ```
 - Common use case: to insert not duplicate records.
 
-###### Copying incrementally
+##### Copying incrementally
 ```sql
 COPY INTO sales
 FROM `path/file`
 FILEFORMAT = PARQUET;
 ```
 
-##### 8. Cleaning Data
+#### 3.8 Cleaning Data
 
-###### Inspecting Data
+##### Inspecting Data
 ```sql
 -- Using count
 SELECT 
@@ -661,7 +659,7 @@ SELECT max(row_count) <= 1 no_duplicate_id FROM (
 );
 ```
 
-###### Date Format and Regex
+##### Date Format and Regex
 ```sql
 SELECT *,
 	date_format(date_column, “MMM d, yyyy”) AS formatted_date,
@@ -674,23 +672,23 @@ FROM (
 );
 ```
 
-##### 9. Advanced SQL Transformations
+#### 3.9 Advanced SQL Transformations
 
-###### Casting to string: for cases of having binary-encoded JSON values
+##### Casting to string: for cases of having binary-encoded JSON values
 ```sql
 CREATE OR REPLACE TEMP VIEW events_string AS
 SELECT string(key), string(value)
 FROM events_raw;
 ```
 
-###### For data stored as string but has a dictionary format
+##### For data stored as string but has a dictionary format
 ```sql
 SELECT value:element1, value: element2
 FROM events_string;
 ```
 You can use it also on the `WHERE` statement.
 
-###### Using `schema_on_json`
+##### Using `schema_on_json`
 ```sql
 CREATE OR REPLACE TEMP VIEW parsed_events AS
 SELECT 
@@ -717,9 +715,9 @@ FROM
 ```
 - This helps to provide a schema to a json column that has some sub-elements empty and you can define a sub-schema for them.
 
-###### Exploring Data Structures
+##### Exploring Data Structures
 
-** Struct **
+**Struct**
 ```sql
 -- Reading fields from a STRUCT field
 SELECT 
@@ -730,7 +728,7 @@ WHERE
 	ecommerce.purchase_revenue_in_usd > 199.99;
 ```
 
-** Arrays**
+**Arrays**
 ```sql
 -- Reading fields from ARRAY field
 SELECT *
@@ -762,7 +760,7 @@ GROUP BY
 	user_id
 ```
 
-###### Join Tables
+##### Join Tables
 ```sql
 CREATE OR REPLACE VIEW sales_enriched AS
 SELECT *
@@ -774,10 +772,10 @@ INNER JOIN item_lookup b
 ON a.item.item_id = b.item_id;
 ```
 
-###### Set Operators
+##### Set Operators
 Not too much to mention, if you have some experience with SQL you may know `UNION`, `INTERSECT` and `MINUS`.
 
-###### Pivot Tables
+##### Pivot Tables
 ```sql
 CREATE OR REPLACE TABLE transaction AS
 SELECT * FROM (
@@ -798,7 +796,7 @@ SELECT * FROM (
 );
 ```
 
-###### Higher Order Functions
+##### Higher Order Functions
 **Filter**
 Given a lambda function, we can make some filters inside an array
 ```sql
@@ -824,7 +822,7 @@ FROM king_size_sales;
 
 Other operations that were not covered (with examples) on the Databricks Learning Notebooks are `reduce` and `exists`.
 
-##### 10. SQL UDFs
+#### 3.10 SQL UDFs
 ```plsql
 CREATE OR REPLACE FUNCTION yelling(text STRING)
 RETURNS STRING
@@ -846,4 +844,47 @@ RETURN CASE
 	...
 	ELSE concat("I don't eat ", food)
 END;
+```
+
+### 3. Some Functions with Python
+```python
+# Creating a database
+def create_database(name_db, reset_db=True):
+	import re # to clean the username
+	username = spark.sql("SELECT current_user()").first()[0]
+	clean_username = re.sub("[^a-zA-Z0-9]","_",username)
+	db_name_final = f"{clean_username}_{name_db}"
+	working_dir = f"dbfs:/user/{username}/{name_db}"
+	
+	# displaying the info
+	print(f"username: 		{username}")
+	print(f"dbname: 		{db_name_final}")
+	print(f"working_dir: 	{working_dir}")
+
+	# if reset is True we drop the DB an re-create it
+	if reset:
+		spark.sql(f"DROP DATABASE IF EXISTS {db_name_final} CASCADE")
+		dbutils.fs.rm(working_dir, True)
+	
+	spark.sql(f"CREATE DATABASE IF NOT EXISTS {db_name_final} LOCATION '{working_dir}/{db_name_final}.db'")
+	spark.sql(f"USE {db_name_final}")
+
+# calling the function
+create_database("luism_database")
+```
+
+```python
+# Python method for displaying query results
+
+def query_or_make_demo_table(table_name):
+	try:
+		display(spark.sql(f"SELECT * FROM {table_name}"))
+		print(f"Displayed results for the table {table_name}")
+	except:
+		spark.sql(f"CREATE TABLE {table_name} (id INT, name STRING, value DOUBLE, state STRING")
+		spark.sql(f"""INSERT INTO {table_name}
+					   VALUES (....)
+					""")
+		display(spark.sql(f"SELECT * FROM {table_name}"))
+		print(f"{table_name} created") 
 ```
