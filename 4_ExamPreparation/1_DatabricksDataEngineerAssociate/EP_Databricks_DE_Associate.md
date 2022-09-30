@@ -888,3 +888,365 @@ def query_or_make_demo_table(table_name):
 		display(spark.sql(f"SELECT * FROM {table_name}"))
 		print(f"{table_name} created") 
 ```
+
+## Topic 3: Incrementally process data
+### 1 General Concepts
+- *Incremental ETL* allow us to deal with new data that has been encountered after the last ingestion
+- *Databricks Auto Loader* provides a mechanism for incrementally and efficiently processing from data that come from a Cloud Storage.
+
+![](EP_Databricks_DE_Associate/AutoLoaderArchitecture.png)
+
+#### 1.1 Auto Loader parameters
+- We can use the following parameters if the *automatic schema inference and evolution* is active.
+| Argument  | Description  | How to use it  |
+|---|---|---|
+|  `data_source` |  Source data directory  |  `.load()` |
+|  `source_format` |  Source data format |  if comes from cloudFiles should be `cloudFiles.format` |
+|  `table_name` |  Table name |  `.table()` |
+|  `checkpoint_directory` |  Location where to store metadata of the stream |  `option("checkpointLocation",checkpoint_directory)` |
+
+```python
+def autoload_to_table(data_source,source_format, table_name, checkpoint_directory):
+	query = (
+			spark.readStream
+				.format("cloudFiles")
+				.option("cloudFiles.format", source_format)
+				.option("cloudFiles.schemaLocation",checkpoint_directory)
+				.load(data_source)
+				.writeStream
+				.option("checkpointLocation",checkpoint_directory)
+				.option("mergeSchema","true")
+				.table(table_name)
+	)
+
+	return query
+```
+
+```python
+query = autoload_to_table(data_source,"json","target_table",f"{DA.paths.checkpoints}/target_table")
+```
+- This code seems that it is not finishing, this is because it is a **continuously active query**
+
+#### 1.3 Describing the Target Table
+```sql
+DESCRIBE EXTENDED target_table;
+```
+There is a column called **_rescued_data** that helps to record the data that could be malformed and not fit on the table.
+
+### 2 Reasoning of Incremental Streaming
+- In Databricks, a Data Stream can be treated as a **unbounded table**. That means that if we have new data in the stream they become new rows appended on the table.
+- *Data Stream* receives data from different sources that can be:
+	- A new JSON log
+	- CDC feed
+	- Events queued in a pub/sub messaging feed
+	- CSV file from previous day
+
+#### 2.1 Basic Components
+- **Input table**
+- **Query** -> can be made in Dataframes API or Spark SQL
+- **Results Table** -> Holds the incremental state information of the stream
+- **Output** -> Will persist updates from the result table using a *sink* (this works as dfs of files or pub/sub messages bus)
+- **Trigger Interval**
+
+#### 2.2 End-to-end Fault Tolerance
+- This approach works only if *the sources are replayable* (cloud-based storage object or pub/sub messaging service)
+- Works like this:
+	- **First**, the Structured Streaming uses *checkpointing* and *write-ahead logs* -> they record the offset range of data
+	- **Then**, the Streaming Sink can receive multiple writes from the same offset but we will be sure that data is not going to be duplicated (*idempotent*)
+
+#### 2.3 Reading a Stream
+```python
+(spark.readStream #returns a DataStreamReader 
+		.table("bronze")
+		.createOrReplaceTempView("streaming_tmp_vw"))
+```
+
+How to stop a stream with python
+```python
+for s in spark.streams.active:
+	print("Stopping " + s.id)
+	s.stop()
+	s.awaitTermination()
+```
+
+**You cannot use some operations like ORDER BY on a streaming view**
+
+#### 2.4 Writing a Stream
+- Settings:
+	- Checkpointing -> stores the current state of the streaming job and cannot be shared between separate streams
+	- Output Modes
+		- `append` ->**default**
+		- `complete` -> result table is **recalculated** each write triggered (target table is overwritten)
+	- Trigger Intervals
+		- Unspecified -> **default** 500ms
+		- Fixed interval micro-batches -> `processingTime = "2 minutes"`
+		- Triggered micro-batch -> `once=True`
+		- Triggered micro-batched -> `availableNow = True`
+
+```python
+spark.table("device_counts_tmp_vw")
+		.writeStream
+		.option("checkpointLocation", "location_path/silver")
+		.outputMode("complete")
+		.trigger(availableNow=True)
+		.table("device_counts")
+		.awaitTermination() #optional: blocks execution
+```
+
+### 3 The Multi-hop Architecture
+**Insert image of  the multi-hop architecture**
+
+#### 3.1 Layers
+- Bronze Layer: holds the raw data from various sources
+- Silver Layer: holds some refined data from the bronze layer. We can make joins and create other columns
+- Gold Layer: tables with business-level aggregates for visualization and dashboarding.
+
+#### 3.2 Bronze
+```python
+# Reading the data Stream
+spark.readStream
+		.format(“cloudFiles”)
+		.option(“cloudFiles.format”,”json”)
+		.option(“cloudFiles.schemaHints”,”time DOUBLE”)
+		.option(“cloudFiles.schemaLocation”,”/path/bronze”)
+		.load(data_landing_location)
+		.createOrReplaceTempView(“recording_raw_temp”)
+```
+
+```sql
+/* Creating a temp view with more metadata */
+CREATE OR REPLACE TEMPORARY VIEW recordings_bronze_temp AS (
+	SELECT 
+		* , 
+		current_timestamp() as receipt_time,
+		input_file_name() source_file
+	FROM
+		recording_raw_temp
+)
+```
+
+```python
+# Writing the data into a Delta Table
+(spark.table(“recording_bronze_temp”)
+		.writeStream
+		.format(“delta”)
+		.option(“checkpointLocation”,”/path/bronze”)
+		.outputMode(“append”)
+		.table(“bronze”)
+```
+
+#### 3.3 Silver
+```python
+# Reading the stream that comes from the Bronze Layer
+(
+spark.readStream
+	.table(“bronze”)
+	.createOrReplaceTempView(“bronze_temp”)
+)
+```
+
+```sql
+/* Making additional modifications on the table */
+CREATE OR REPLACE TEMPORARY VIEW recordings_join AS (
+
+	SELECT
+		a.column_1,
+		a.column_2,
+		cast(from_unixtime(time, ‘yyyy-MM-dd HH:mm:ss’) AS timestamp) time, a.column_3
+	FROM	
+		bronze_temp a
+	JOIN
+		join_table b
+	ON	a.key_column = b.key_column
+	WHERE
+		b.column_5 > something
+)
+```
+
+```python
+# Loading the table to silver hop
+(
+spark.table(“recordings_join”)
+		.writeStream
+		.format(“delta”)
+		.option(“checkpointLocation”,”/path/recordings_enriched”)
+		.outputMode(“append”)
+		.table(“recordings_enriched”)
+)
+```
+
+#### 3.4 Gold
+```python
+# Reading stream from the silver hop
+(
+spark.readStream
+		.table(“recordings_enriched”)
+		.createOrReplaceTempView(“recordings_enriched_temp”)
+)
+```
+
+```sql
+/* Making the aggregations based on bussines needs */
+CREATE OR REPLACE TEMP VIEW recording_agg AS (
+	SELECT column_1, column_2, mean(column_3) avg_column_3
+	FROM recordings_enriched_temp
+	GROUP BY column_1, column_2
+)
+```
+
+```python
+(
+spark.table(“recordings_agg”)
+		.writeStream
+		.format(“delta”)
+		.outputMode(“complete”)
+		.option(“checkpointLocation”,”/path/daily_agg”)
+		.trigger(availableNow = True)
+		.table(“daily_recordings_agg”)
+)
+```
+
+### 4 Delta Live Tables
+
+#### 4.1 Delta Live Tables UI
+For this part, we need to create and configure a **pipeline**. On the Databricks Learning Notebooks you will find the steps to create a workflow.
+
+Some important fields that we need to set:
+- Product edition: `Core`,`Pro` and `Advanced`
+- Pipeline name
+- Notebook libraries
+- Configuration
+	- `spark.master` -> `local[*]`
+	- `dataset_path` -> `dbfs:/......`
+- Target: means the database name
+- Storage Location
+- Pipeline mode:
+	- `Triggered` -> update once and the cluster shuts down
+	- `Continuous` -> keep a cluster always running
+- Cluster mode:
+	- `Legacy autoscaling` -> let you to put min and max workers
+	- `Enhanced autoscaling`
+	- `Fixed Size` -> let you to put a fixed number of workers
+
+#### 4.2 Looking inside a Notebook that run inside a job
+
+*Bronze Layer*
+- Via Auto Loader requires to use `STREAMING`
+- `cloud_files()`enables **Auto Loader**
+```sql
+CREATE OR REFRESH STREAMING LIVE TABLE table_raw
+COMMENT "Table with the raw elements"
+AS SELECT * FROM 
+cloud_files("/path/dataset","json",map("cloudFiles.inferColumnTypes","true"))
+
+# Parameters:
+# - source_location
+# - source data format
+# - map: to add options
+```
+
+*Silver Layer*
+- Here we can add some **quality control** like constraints.
+- To refer a DLT table we have to use `live` this helps us when we change the environment the migration would be easy.
+- To refer streaming tables we have to use `STREAM()`.
+```sql
+CREATE OR REFRESH STREAMING LIVE TABLE table_cleaned(
+CONSTRAINT valid_element_id EXPECT (element_id IS NOT NULL) ON VIOLATION DROP ROW
+)
+AS
+SELECT
+	-- make some transformations on columns
+FROM
+	STREAM(LIVE.table_raw) f
+JOIN
+	LIVE.other_table_raw g
+ON
+	f.element_id = g.element_id
+```
+
+*Gold Layer*
+```sql
+CREATE OR REFRESH LIVE TABLE table_final
+AS
+SELECT
+	-- some proccessing here + aggregations
+FROM
+	table_cleaned
+WHERE
+	-- some filter
+GROUP BY
+	-- some aggregations
+```
+
+#### 4.3 Using Databricks Jobs to Orchestrate Tasks
+After we set our delta live table we can schedule it via Databricks Jobs. The most important information to fill on the Job Form are the following.
+- Task name
+- Type: notebook, python script, python well, sql, etc.
+- Source: Workspace and Git
+- Path: location of the notebook
+- Cluster
+
+About the schedule:
+- You can select like: Every `Minute/Hour/Day/Week/Month` at `H24:MM` `TimeZone`
+
+### 5 Navigating Databricks SQL
+- To access SQL Warehouse, you need to go to SQL Workspace
+- You can create a SQL Warehouse with an specific cluster size
+- You can import a Sample Database to your SQL Warehouse
+
+**Creating a Query**
+- On the Query section, you can attach your SQL Warehouse and make your queries and store them
+
+**Updating a Dashboard**
+- On the Dashboard section, you can attach your SQL Warehouse and select a type of visualization element (chart, etc) and attach a Query.
+
+**Set a Query Refresh Schedule**
+- On the SQL Query editor you can schedule the refresh execution of a query table.
+
+## Topic 4: Understand and follow best security practices
+### 1 Data Explorer
+- You can find it on Data/Data Explorer
+- Helps you with
+	- Navigate databases, tables, views
+	- Explore data schema, metadata and history
+	- Set and modify **permissions** of relational entities
+
+#### 1.1 Configuring Permissions
+- By default only admins can view all objects registered to the metastore (users by default don’t have the permissions)
+
+**Table ACLS**
+- `CATALOG` -> control access to the entire data catalog
+- `DATABASE`
+- `TABLE` -> managed or external tables
+- `VIEW`
+- `FUNCTION`
+- `ANY FILE`
+
+**Granting Privileges** (Roles)
+- Databricks administrator
+- Catalog owner
+- Database owner
+- Table owner
+
+**Privileges**
+- `ALL PRIVILEGES`
+- `SELECT`
+- `MODIFY`
+- `READ_METADATA`
+- `USAGE` -> don’t give any permission but is an additional requirement to perform any action on a db object
+- `CREATE`
+- `CREATED_NAMED_FUNCTION`
+
+#### 1.2 Giving grant  to Derivative datasets
+```sql
+CREATE DATABASE database_name;
+GRANT USAGE, READ_METADATA, CREATE, MODIFY, SELECT ON DATABASE `database_name` TO `users`;
+
+-- Display grants
+SHOW GRANT ON DATABASE `database_name`;
+```
+
+#### 1.3 Give grant to create databases and tables
+```sql
+GRANT USAGE, CREATE ON CATALOG `hive_metastore` TO `users`;
+```
