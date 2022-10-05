@@ -569,6 +569,13 @@ CREATE OR REPLACE TABLE purchase_date (
 -- Adding constraints (2 types: NOT NULL and CHECK)
 ALTER TABLE purchase_dates ADD CONSTRAINT valid_date CHECK (date > '2020-01-01');
 -- This is store in the TBLPROPERTIES field
+
+--Using data quality checks
+
+--If record violates then drop row on dataset
+ALTER TABLE purchase_dates ADD CONSTRAINT valid_date EXPECT(date > '2020-01-01') ON VIOLATION DROP ROW;
+--If record violates then job will fail
+ALTER TABLE purchase_dates ADD CONSTRAINT valid_date EXPECT(date > '2020-01-01') ON VIOLATION FAIL UPDATE;
 ```
 
 ```sql
