@@ -44,6 +44,22 @@ Other topics related to *Delta Tables*:
 - You can switch between workspaces.
 - You can view the **new** databricks SQL queries, dashboards and alerts. **BUT**, to view the existing ones you need to **migrate** them into the wkspace browser
 
+#### 2.1.0 Databricks Repos
+You can do the following things:
+- Clone, push and pull from a remote Git repository
+- Create and manage branches (development work)
+- Create/edit notebooks.
+- Visually compare differences upon commit 
+
+**Databricks vs Git Provider functionaliities**
+| Admin Control  | User Workflow in Databricks  | Merge workflow in Git provider  | Production job workflow in Databricks | 
+|---|---|---|---|
+| Setup top-level Repos (D)  | Clone remote repo (D)  | Pull request and review process (G)  | API call brings Repo in production folder to the latest version (D) | 
+| Setup auto-update on merge (G)  | Create new branch (D)  | Merge into main branch (G)  | Run Databricks job based on Repo in production folder (D) | 
+| | Create and edit code (D) | Git automation calls Repos API (G)  | | 
+| | Commit and push code (D)  |   | | 
+
+
 #### 2.2 Clusters (Databricks Computer Resource)
 - Provide unified platform for many use cases: *production ETL*, *pipelines*, *streaming analytics*, *ad-hoc analytics* and *ML*.
 
@@ -53,16 +69,16 @@ Other topics related to *Delta Tables*:
     
 - Databricks can retain cluster config for *up to 200 all-purpose clusters* terminated in the last **30 days**, and *up to 30 job clusters* **recently terminated** (you can pin a cluster to the cluster list).
 
-##### Creating a Cluster
+Creating a Cluster
 - There are to types of cluster while you create it -> Single and Multiple Node
 - Photon Accelerator -> accelerate Spark workload and reduce the total cost/workload
 - Termination -> default after 120 min of inactivity (can be disabled)
 
-##### Editing a Cluster
+Editing a Cluster
 - You cannot change if it was Single or Multiple Node
 - If you made at least 1 change, the cluster must be restarted
 
-##### Restart, Terminate and Delete a Cluster
+Restart, Terminate and Delete a Cluster
 - They all start with a **cluster termination event** (also there is a *automatic termination* due inactivity)
 - Cluster terminates -> VMs/Ops Memory purged, Attached Volume deleted, Networks between nodes removed
 - **Restart** -> to clear cache or to reset compute environment.
@@ -71,22 +87,22 @@ Other topics related to *Delta Tables*:
 
 #### 2.3 Notebooks
 
-##### Attach to a cluster
+Attach to a cluster
 - Remember that a notebook provides **cell-by-cell execution of code**
 - Multiple languages can be mixed inside a notebook.
 
-##### Running a Cell
+Running a Cell
 `CTRL+ENTER` or `CTRL+RETURN`
 `SHIFT+ENTER` or `SHIFT+RETURN` -> to run the cell and move to the next one
 
-##### Setting the Default Notebook Language
+Setting the Default Notebook Language
 - Databricks notebooks support Python, SQL, Scala and R.
 - You can set a PL once you are creating the notebook but can be changed at any time.
 - Python is the default language. If you change it, you will see on the top of each python cell the command `%python`
 
-##### Create a new cell with `B` key
+Create a new cell with `B` key
 
-##### Magic Commands
+Magic Commands
 - Identified by `%` character
 - Only 1 magic command per cell and must be the first thing in a cell.
 - **Language Magics** -> `%sql`, `%python`
@@ -94,7 +110,7 @@ Other topics related to *Delta Tables*:
 - **Running command** -> `%run` this is to run a notebook from another notebook (its temp views and local declarations are going to be part of the calling notebook)
 	- `%run ../Includes/Classroom-Setup-0.12`
 
-##### Databricks Utilities (`dbutils docs`)
+Databricks Utilities (`dbutils docs`)
 ```python
 %python
 #Obtain the list of files of a path
@@ -109,54 +125,57 @@ The `display()` has the following considerations:
 - Maximum 1000 records
 - Has an option to download the result as a CSV file
 
-##### Downloading Notebooks
+Downloading Notebooks
 1. Download a notebook
 2. Download a **collection** of notebooks (using Repos)
 
-##### Clearing Notebook States
+Clearing Notebook States
 * **Clear** menu and select **Clear State & Clear Outputs**
 
 ### 3 Delta Tables
 
-##### 3.1 Creating a Delta Table
+3.1 Creating a Delta Table
 ```sql
 CREATE TABLE IF NOT EXISTS students
-	(id INT, name STRING, value DOUBLE);
+	(	id INT, 
+		name STRING, 
+		gpa DOUBLE GENERATED ALWAYS AS (expression) COMMENT 'student gpa'
+	);
 ```
 
-##### 3.2 Inserting Data (`COMMIT`is not required)
+3.2 Inserting Data (`COMMIT`is not required)
 ```sql
 INSERT INTO students VALUES (1, "Yve", 1.0);
 --Inserting multiple rows in 1 INSERT
 INSERT INTO students
 VALUES
-	(4, "Ted", 4.7),
-	(5, "Tiffany", 5.5),
-	(6, "Vini", 6.3)
+	(4, "Ted", 4.1),
+	(5, "Tiffany", 3.5),
+	(6, "Vini", 4.0)
 ```
 
-##### 3.3 Querying a Delta Table
+3.3 Querying a Delta Table
 ```sql
 SELECT * FROM students
 ```
 * Every `SELECT`will return the **most recent version of the table**
 * Concurrent reads is limited only the **limitations** of object storage (depending on the cloud vendor).
 
-##### 3.4 Updating Records (1st snapshot 2nd update)
+3.4 Updating Records (1st snapshot 2nd update)
 ```sql
 UPDATE students
 SET value = value + 1
 WHERE name LIKE "%T"
 ```
 
-##### 3.5 Deleting Records
+3.5 Deleting Records
 ```sql
 DELETE students 
 WHERE value > 6
 ```
 * If you delete the entire table, you will see -1 as a result of the numbers of rows affected. This means an entire directory of data has been removed
 
-##### 3.6 Merge Records
+3.6 Merge Records
 ```sql
 MERGE INTO students s
 USING students_updated u
@@ -169,12 +188,12 @@ WHEN NOT MATCHED AND u.type = "insert"
 	THEN INSERT *
 ```
 
-##### 3.7 Dropping Table
+3.7 Dropping Table
 ```sql
 DROP TABLE students
 ```
 
-##### 3.8 Examining Table Details (Using the **Hive metastore**)
+3.8 Examining Table Details (Using the **Hive metastore**)
 ```sql
 -- Show important metadata about our table (columns and partitioning)
 DESCRIBE EXTENDED students
@@ -202,7 +221,7 @@ DESCRIBE HISTORY students
 */
 ```
 
-##### 3.9 Explore Delta Lake FILES
+3.9 Explore Delta Lake FILES
 ```python
 %python
 display(dbutils.fs.ls(f"{DA.paths.user_db}/students"))
@@ -222,7 +241,7 @@ The result displays 2 important columns:
 '''
 ```
 
-##### 3.10 Compacting Small Files and Indexing
+3.10 Compacting Small Files and Indexing
 * `OPTIMIZE` command helps us to combine records and rewriting results 
 * We can **optionally** specify the field(s) for `ZORDER`indexing.
 ```sql
@@ -234,12 +253,12 @@ SELECT * FROM students
 VERSION AS OF 3
 ```
 
-##### 3.11 Rollback Versions
+3.11 Rollback Versions
 ```sql
 RESTORE TABLE students TO VERSION AS OF 8
 ```
 
-##### 3.12 Purge Old Data Files
+3.12 Purge Old Data Files
 ```sql
 SET spark.databricks.delta.retentionDurationCheck.enabled = false;
 SET spark.databricks.delta.vacuum.logging.enabled = true;
@@ -288,7 +307,7 @@ files 		= dbutils.fs.ls(tbl_location)
 display(files)
 ```
 
-If you **drop the table** the files will be deleted by the **schema remains**.
+If you **drop the table** the files will be deleted but the **schema remains**.
 
 ### 2. Tables
 First, we need to know the difference between *managed* and *unmanaged* tables
@@ -582,7 +601,7 @@ SHALLOW CLONE purchases
 
 #### 3.7 Writing to Delta Tables
 
-##### Overwriting
+Overwriting
 - Some benefits of **overwriting** data:
 	- Is much faster because you will not list the directories recursively.
 	- You can use *Time Travel* to retrieve old data.
@@ -610,13 +629,13 @@ DESCRIBE HISTORY table;
 -- It will fail if we try to change the schema of the table
 ```
 
-##### Appending
+Appending
 ```sql
 INSERT INTO table
 SELECT * FROM parquet.`path/file`;
 ```
 
-##### Merging Updates
+Merging Updates
 ```sql
 MERGE INTO table a
 USING source b
@@ -626,7 +645,7 @@ WHEN NOT MATCHED THEN {not_matched_action}
 ```
 - Common use case: to insert not duplicate records.
 
-##### Copying incrementally
+Copying incrementally
 ```sql
 COPY INTO sales
 FROM `path/file`
@@ -635,7 +654,7 @@ FILEFORMAT = PARQUET;
 
 #### 3.8 Cleaning Data
 
-##### Inspecting Data
+Inspecting Data
 ```sql
 -- Using count
 SELECT 
@@ -659,7 +678,7 @@ SELECT max(row_count) <= 1 no_duplicate_id FROM (
 );
 ```
 
-##### Date Format and Regex
+Date Format and Regex
 ```sql
 SELECT *,
 	date_format(date_column, “MMM d, yyyy”) AS formatted_date,
@@ -674,21 +693,21 @@ FROM (
 
 #### 3.9 Advanced SQL Transformations
 
-##### Casting to string: for cases of having binary-encoded JSON values
+Casting to string: for cases of having binary-encoded JSON values
 ```sql
 CREATE OR REPLACE TEMP VIEW events_string AS
 SELECT string(key), string(value)
 FROM events_raw;
 ```
 
-##### For data stored as string but has a dictionary format
+For data stored as string but has a dictionary format
 ```sql
 SELECT value:element1, value: element2
 FROM events_string;
 ```
 You can use it also on the `WHERE` statement.
 
-##### Using `schema_on_json`
+Using `schema_on_json`
 ```sql
 CREATE OR REPLACE TEMP VIEW parsed_events AS
 SELECT 
@@ -715,7 +734,7 @@ FROM
 ```
 - This helps to provide a schema to a json column that has some sub-elements empty and you can define a sub-schema for them.
 
-##### Exploring Data Structures
+Exploring Data Structures
 
 **Struct**
 ```sql
@@ -760,7 +779,7 @@ GROUP BY
 	user_id
 ```
 
-##### Join Tables
+Join Tables
 ```sql
 CREATE OR REPLACE VIEW sales_enriched AS
 SELECT *
@@ -772,10 +791,10 @@ INNER JOIN item_lookup b
 ON a.item.item_id = b.item_id;
 ```
 
-##### Set Operators
+Set Operators
 Not too much to mention, if you have some experience with SQL you may know `UNION`, `INTERSECT` and `MINUS`.
 
-##### Pivot Tables
+Pivot Tables
 ```sql
 CREATE OR REPLACE TABLE transaction AS
 SELECT * FROM (
@@ -796,7 +815,7 @@ SELECT * FROM (
 );
 ```
 
-##### Higher Order Functions
+Higher Order Functions
 **Filter**
 Given a lambda function, we can make some filters inside an array
 ```sql
@@ -892,12 +911,13 @@ def query_or_make_demo_table(table_name):
 ## Topic 3: Incrementally process data
 ### 1 General Concepts
 - *Incremental ETL* allow us to deal with new data that has been encountered after the last ingestion
-- *Databricks Auto Loader* provides a mechanism for incrementally and efficiently processing from data that come from a Cloud Storage.
+- *Databricks Auto Loader* provides a mechanism for incrementally and efficiently processing from data that come from a Cloud Storage. Also it can split the processing into batches so its less expensive.
 
 ![](EP_Databricks_DE_Associate/AutoLoaderArchitecture.png)
 
 #### 1.1 Auto Loader parameters
 - We can use the following parameters if the *automatic schema inference and evolution* is active.
+
 | Argument  | Description  | How to use it  |
 |---|---|---|
 |  `data_source` |  Source data directory  |  `.load()` |
@@ -950,8 +970,8 @@ There is a column called **_rescued_data** that helps to record the data that co
 
 #### 2.2 End-to-end Fault Tolerance
 - This approach works only if *the sources are replayable* (cloud-based storage object or pub/sub messaging service)
-- Works like this:
-	- **First**, the Structured Streaming uses *checkpointing* and *write-ahead logs* -> they record the offset range of data
+- Works like this (*Checkpointing* and *Idempotent Sinks*):
+	- **First**, the Structured Streaming uses *checkpointing* and *write-ahead logs* -> they record the offset range of data 
 	- **Then**, the Streaming Sink can receive multiple writes from the same offset but we will be sure that data is not going to be duplicated (*idempotent*)
 
 #### 2.3 Reading a Stream
@@ -992,6 +1012,17 @@ spark.table("device_counts_tmp_vw")
 		.table("device_counts")
 		.awaitTermination() #optional: blocks execution
 ```
+
+When to use AUTOLOADER and COPY INTO
+
+| Context  | Auto Loader  | COPY INTO  |
+|---|---|---|
+| Ingest files in order of thousands  |    |  X  |
+| Ingest files in order of millions  |  X  |    |
+| Data Schema Evolution |  X  |    |
+| Re-upload a subset |    |  X  |
+| File notification | | X |
+| Directory listing | X | X |
 
 ### 3 The Multi-hop Architecture
 **Insert image of  the multi-hop architecture**
@@ -1179,12 +1210,15 @@ GROUP BY
 ```
 
 #### 4.3 Using Databricks Jobs to Orchestrate Tasks
-After we set our delta live table we can schedule it via Databricks Jobs. The most important information to fill on the Job Form are the following.
+After we set our delta live table we can schedule (*Cron* or *On Demand* run) it via Databricks Jobs. The most important information to fill on the Job Form are the following.
 - Task name
 - Type: notebook, python script, python well, sql, etc.
 - Source: Workspace and Git
 - Path: location of the notebook
 - Cluster
+- Retries? -> You can add a retry policy (1 time means 2 attemps in total and so on)
+
+**Remember that jobs and queries are hosted in the CONTROL PLANE**
 
 About the schedule:
 - You can select like: Every `Minute/Hour/Day/Week/Month` at `H24:MM` `TimeZone`
@@ -1205,7 +1239,7 @@ About the schedule:
 
 ## Topic 4: Understand and follow best security practices
 ### 1 Data Explorer
-- You can find it on Data/Data Explorer
+- You can find it on Data or Data Explorer sections
 - Helps you with
 	- Navigate databases, tables, views
 	- Explore data schema, metadata and history
@@ -1249,4 +1283,9 @@ SHOW GRANT ON DATABASE `database_name`;
 #### 1.3 Give grant to create databases and tables
 ```sql
 GRANT USAGE, CREATE ON CATALOG `hive_metastore` TO `users`;
+```
+
+#### 1.4 Change owner of a table
+```sql
+GRANT OWNER ON table_name TO 'group';
 ```
