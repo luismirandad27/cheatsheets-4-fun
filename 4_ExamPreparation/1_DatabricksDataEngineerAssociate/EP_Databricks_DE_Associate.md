@@ -10,6 +10,7 @@
 #### 1.1 Primary Components
 - **Delta tables**
     - Databricks uses the Delta Lake protocol **by default**
+	- **Delta Lake**: is an open storage format (like parquet) that provides *security*, *reliability* and *performance*.
     - **When a Delta Table is created**:
         - Metadata is added to the *metastore* (inside the declared schema or database).
         - *Data* and *table metadata* saved to a directory.
@@ -101,6 +102,8 @@ Setting the Default Notebook Language
 - Python is the default language. If you change it, you will see on the top of each python cell the command `%python`
 
 Create a new cell with `B` key
+
+**Remember**: Notebooks support *tracking* and *versioning*.
 
 Magic Commands
 - Identified by `%` character
@@ -320,6 +323,8 @@ First, we need to know the difference between *managed* and *unmanaged* tables
 	- Spark manages both data and metadata.
 	- Global -> available across all clusters
 	- If we drop the table, **both data and metadata will be dropped**
+
+In case of **external tables**, if you drop the table, it will be deleted on the metastore, but the data and metadata stayed.
 
 ```sql
 USE ${da.db_name}_default_location
