@@ -376,7 +376,8 @@ WHERE distance > 1000;
 	- After detaching and reattaching a cluster
 	- After installing a python package (python interpreter restarts)
 	- Using another notebook
-- For **global** views, the cluster holds the `global_temp` database .
+- For **global** views, the cluster holds the `global_temp` database. If the cluster is restarted then the global view is going to be deleted.
+- A **view** will be persisted even though the cluster is restarted because it will be stored in the metastore.
 
 #### 2.2 Common Table Expression (CTEs)
 ```sql
@@ -677,7 +678,7 @@ FROM
 	table_name;
 
 -- Using distinct
-SELECT count(DISTINCT(*)) FROM	table_name;
+SELECT count(DISTINCT(*)) FROM	table_name; --it will remove all the rows that have at least 1 column with NULL value.
 SELECT count(DISTINCT(column_1)) FROM	table_name;
 ```
 
