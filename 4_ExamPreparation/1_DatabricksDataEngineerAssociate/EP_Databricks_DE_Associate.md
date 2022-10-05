@@ -913,7 +913,7 @@ def query_or_make_demo_table(table_name):
 - *Incremental ETL* allow us to deal with new data that has been encountered after the last ingestion
 - *Databricks Auto Loader* provides a mechanism for incrementally and efficiently processing from data that come from a Cloud Storage. Also it can split the processing into batches so its less expensive.
 
-![](EP_Databricks_DE_Associate/AutoLoaderArchitecture.png)
+![](assets/IncrementalProcessingAsset.png)
 
 #### 1.1 Auto Loader parameters
 - We can use the following parameters if the *automatic schema inference and evolution* is active.
