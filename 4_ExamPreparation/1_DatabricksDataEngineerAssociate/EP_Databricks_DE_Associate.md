@@ -1034,7 +1034,7 @@ When to use AUTOLOADER and COPY INTO
 | Ingest files in order of millions  |  X  |    |
 | Data Schema Evolution |  X  |    |
 | Re-upload a subset |    |  X  |
-| File notification | | X |
+| File notification | X | |
 | Directory listing | X | X |
 
 ### 3 The Multi-hop Architecture
