@@ -944,7 +944,7 @@ def autoload_to_table(data_source,source_format, table_name, checkpoint_director
 			spark.readStream
 				.format("cloudFiles")
 				.option("cloudFiles.format", source_format)
-				.option("cloudFiles.schemaLocation",checkpoint_directory)
+				.option("cloudFiles.schemaLocation",checkpoint_directory) # where to store the schema inferred by AUTO LOADER
 				.load(data_source)
 				.writeStream
 				.option("checkpointLocation",checkpoint_directory)
@@ -1240,6 +1240,7 @@ About the schedule:
 - To access SQL Warehouse, you need to go to SQL Workspace
 - You can create a SQL Warehouse with an specific cluster size
 - You can import a Sample Database to your SQL Warehouse
+- When you create a SQL Cluster Endpoint, you have a feature called *Autostop* that helps with the cluster to stop.
 
 **Creating a Query**
 - On the Query section, you can attach your SQL Warehouse and make your queries and store them
@@ -1300,5 +1301,5 @@ GRANT USAGE, CREATE ON CATALOG `hive_metastore` TO `users`;
 
 #### 1.4 Change owner of a table
 ```sql
-GRANT OWNER ON table_name TO 'group';
+ALTER TABLE table_name OWNER TO 'group';
 ```
