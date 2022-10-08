@@ -119,6 +119,8 @@ Restart, Terminate and Delete a Cluster
 - **Terminate** -> *stop* but maintain same configurations so we can use **Restart** button to set new cloud resources.
 - **Delete** -> stop our cluster and remove the configurations.
 
+If a cluster is not enable to start, check **cluster event logs**.
+
 #### 3.3 Notebooks
 
 Attach to a cluster
@@ -145,6 +147,7 @@ Magic Commands
 - **Markdown** -> for markdown language
 - **Running command** -> `%run` this is to run a notebook from another notebook (its temp views and local declarations are going to be part of the calling notebook)
 	- `%run ../Includes/Classroom-Setup-0.12`
+	
 
 Databricks Utilities (`dbutils docs`)
 ```python
@@ -155,6 +158,12 @@ dbutils.fs.ls(path)
 #Display the list of files of a path
 files = dbutils.fs.ls(path)
 display(files)
+
+#To run a notebook in another notebook
+dbutils.notebook.run('path')
+
+#Get the value of a parameter store
+value = dbutils.widget.get('parameter')
 ```
 The `display()` has the following considerations:
 - Rendering plots
@@ -531,6 +540,7 @@ OPTIONS (
 	header 		= "true",
 	delimiter	= "|"
 )
+TBLPROPERTIES( email = "myemail@job.com" )
 LOCATION "${DA.paths.sales_csv}"
 ```
 
@@ -604,8 +614,13 @@ CREATE OR REPLACE TABLE purchase_date (
 )
 ```
 
+**CONSTRAINTS**
+
 ```sql
 -- Adding constraints (2 types: NOT NULL and CHECK)
+ALTER TABLE purchase_dates ALTER COLUMN column_name DROP NOT NULL;
+ALTER TABLE purchase_dates ALTER COLUMN column_name SET NOT NULL;
+
 ALTER TABLE purchase_dates ADD CONSTRAINT valid_date CHECK (date > '2020-01-01');
 -- This is store in the TBLPROPERTIES field
 
@@ -697,6 +712,8 @@ COPY INTO sales
 FROM `path/file`
 FILEFORMAT = PARQUET;
 ```
+
+-*COPY INTO* does not detect new files after the last load.
 
 #### 3.8 Cleaning Data
 
@@ -961,6 +978,10 @@ def query_or_make_demo_table(table_name):
 
 ![](assets/IncrementalProcessingAsset.png)
 
+Other important things in AUTO LOADER:
+- AUTO LOADER re-processes data that was not loaded.
+- Remember the parameter `maxFilesPerTrigger` to increase the performance.
+
 #### 1.1 Auto Loader parameters
 - We can use the following parameters if the *automatic schema inference and evolution* is active.
 
@@ -1043,6 +1064,7 @@ for s in spark.streams.active:
 	- Output Modes
 		- `append` ->**default**
 		- `complete` -> result table is **recalculated** each write triggered (target table is overwritten)
+		- `update`
 	- Trigger Intervals
 		- Unspecified -> **default** 500ms
 		- Fixed interval micro-batches -> `processingTime = "2 minutes"`
@@ -1078,13 +1100,15 @@ When to use AUTOLOADER and COPY INTO
 - Silver Layer: holds some refined data from the bronze layer. We can make joins and create other columns
 - Gold Layer: tables with business-level aggregates for visualization and dashboarding.
 
+![](assets/multiHopArchitecture.jpeg)
+
 #### 3.2 Bronze
 ```python
 # Reading the data Stream
 spark.readStream
 		.format(“cloudFiles”)
 		.option(“cloudFiles.format”,”json”)
-		.option(“cloudFiles.schemaHints”,”time DOUBLE”)
+		.option(“cloudFiles.schemaHints”,”time DOUBLE”) #important in the exam!
 		.option(“cloudFiles.schemaLocation”,”/path/bronze”)
 		.load(data_landing_location)
 		.createOrReplaceTempView(“recording_raw_temp”)
@@ -1198,12 +1222,16 @@ Some important fields that we need to set:
 - Target: means the database name
 - Storage Location
 - Pipeline mode:
-	- `Triggered` -> update once and the cluster shuts down
+	- `Triggered` -> update once and the cluster shuts down and the compute resources will persist.
 	- `Continuous` -> keep a cluster always running
 - Cluster mode:
 	- `Legacy autoscaling` -> let you to put min and max workers
 	- `Enhanced autoscaling`
 	- `Fixed Size` -> let you to put a fixed number of workers
+
+**Modes**
+- *Development*: reuses cluster to avoid overhead in restarts. Disable pipeline retries.
+- *Production*: restarts the cluster and retries execution in specific errors.
 
 #### 4.2 Looking inside a Notebook that run inside a job
 
@@ -1261,10 +1289,13 @@ After we set our delta live table we can schedule (*Cron* or *On Demand* run) it
 - Type: notebook, python script, python well, sql, etc.
 - Source: Workspace and Git
 - Path: location of the notebook
-- Cluster
+- Cluster (this is important)
 - Retries? -> You can add a retry policy (1 time means 2 attemps in total and so on)
+- A task can store key-value pairs parameters
 
 **Remember that jobs and queries are hosted in the CONTROL PLANE**
+
+
 
 About the schedule:
 - You can select like: Every `Minute/Hour/Day/Week/Month` at `H24:MM` `TimeZone`
@@ -1283,6 +1314,11 @@ About the schedule:
 
 **Set a Query Refresh Schedule**
 - On the SQL Query editor you can schedule the refresh execution of a query table.
+- You cannot refresh a SQL query or dashboard on a Job.
+
+**Alerts**
+- You can create an alert and be notified via email.
+- You can use default template, custom templates and send through different apps like Webhook.
 
 ## Topic 4: Understand and follow best security practices
 
@@ -1342,7 +1378,7 @@ GRANT USAGE, CREATE ON CATALOG `hive_metastore` TO `users`;
 ALTER TABLE table_name OWNER TO 'group';
 ```
 
-#### 1.5 Upgrade tables and vies to Unity Catalog
+#### 1.5 Upgrade tables and vies to Unity Catalog (This is the first step of every process with Unity Catalog)
 
 - Migrating from Hive metastore to Unity Catalog via **data explorer** wizard.
 - You need storage credentials, external location and `CREATE EXTERNAL TABLE` permission.
