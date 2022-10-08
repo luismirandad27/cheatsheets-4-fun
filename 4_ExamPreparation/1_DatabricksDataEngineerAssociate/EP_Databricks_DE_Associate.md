@@ -1288,7 +1288,7 @@ About the schedule:
 
 **Remember this**
 
-![](assets/IncrementalProcessingAsset.png)
+![](assets/HirearchyTable.jpeg)
 
 ### 1 Data Explorer
 - You can find it on Data or Data Explorer sections
