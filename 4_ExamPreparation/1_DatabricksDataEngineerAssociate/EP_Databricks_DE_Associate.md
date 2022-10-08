@@ -86,9 +86,20 @@ You can do the following things:
 #### 3.2 Clusters (Databricks Computer Resource)
 - Provide unified platform for many use cases: *production ETL*, *pipelines*, *streaming analytics*, *ad-hoc analytics* and *ML*.
 
-- **Cluster Types**:
-    - <ins>*All-purpose clusters*</ins>: the user can manually terminate and restart them. **Multiple users** can share such clusters (*collaborative interactive analysis*)
-    - <ins>*Job clusters*</ins>: dealed by the *Databricks job scheduler*
+**Cluster Types**:
+- <ins>*All-purpose clusters*</ins>: the user can manually terminate and restart them. **Multiple users** can share such clusters (*collaborative interactive analysis*)
+- <ins>*Job clusters*</ins>: dealed by the *Databricks job scheduler*
+
+**Cluster Modes**:
+- <ins>*Standard mode clusters*</ins>: now called *No Isolation Shared access*.
+- <ins>*High Concurrency Mode with Table ACLs*</ins>: now called *Shared access mode*. **Ideañ for group of users who share resources**.
+- <ins>*Single Node*</ins>:
+
+**Autoscaling**:
+- Some workloads are NOT compatible with Autoscaling like *spark-submit* and *python* packages.
+
+**Pools**:
+- **Reduce cluster start** and scale-up times by maintaining a set of available instances.
     
 - Databricks can retain cluster config for *up to 200 all-purpose clusters* terminated in the last **30 days**, and *up to 30 job clusters* **recently terminated** (you can pin a cluster to the cluster list).
 
@@ -1274,6 +1285,11 @@ About the schedule:
 - On the SQL Query editor you can schedule the refresh execution of a query table.
 
 ## Topic 4: Understand and follow best security practices
+
+**Remember this**
+
+![](assets/IncrementalProcessingAsset.png)
+
 ### 1 Data Explorer
 - You can find it on Data or Data Explorer sections
 - Helps you with
@@ -1324,4 +1340,32 @@ GRANT USAGE, CREATE ON CATALOG `hive_metastore` TO `users`;
 #### 1.4 Change owner of a table
 ```sql
 ALTER TABLE table_name OWNER TO 'group';
+```
+
+#### 1.5 Upgrade tables and vies to Unity Catalog
+
+- Migrating from Hive metastore to Unity Catalog via **data explorer** wizard.
+- You need storage credentials, external location and `CREATE EXTERNAL TABLE` permission.
+
+**Upgrade process**
+- Select *hive_metastore* and the database you want to upgrade and click on **upgrade**.
+- Select the objects and set the destination catalog.
+- Run the query that has been created.
+
+**Upgrade an EXTERNAL TABLE to UNITY CATALOG**
+- Select the database in the *Data Explorer* and follow the steps similar like the previous process.
+
+**Upgrade a table to a UNITY CATALOG as Managed table**
+- You have to use a *unity catalog query*
+
+```sql
+CREATE TABLE <catalog>.<new_schema>.<new_table>
+AS SELECT * FROM hive_metastore.<old_schema>.<old_table>
+```
+or
+```python
+df = spark.table("hive_metastore.<old_schema>.<old_table>")
+df.write.saveAsTable(
+	name = "<catalog>.<new_schema>.<new_table>"
+)
 ```
