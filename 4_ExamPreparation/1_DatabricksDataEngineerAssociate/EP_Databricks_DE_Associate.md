@@ -33,11 +33,33 @@ Other topics related to *Delta Tables*:
 |  Manage property formats | Stores data of any nature in any format  | Deals with many standard data formats  |
 |   |   | ++ Indexis protocols optimized for ML and DS |
 
-### 2 Data Science and Engineering Workspace
+**Other features in a Data Lakehouse**
+- Transaction Support (ACID)
+- Schema enforcement and governance
+- BI support
+- Storage is **decoupled** from compute
+- Openness (storage formats)
+- Support for diverse data types (unstructured and structured)
+- Support for diverse workloads (DS, ML, SQL and Analytics)
+- End-to-end streaming (Real time)
+
+### 2 High-level architecture
+
+*Control Plane*
+- Backend services
+
+*Data Plane*
+- Is where your data resides and also is processed.
+- You can use connectors to connect to external data sources.
+- You can ingest data from external streaming data sources.
+
+![](assets/DatabricksHighLevelArchitecture.png)
+
+### 3 Data Science and Engineering Workspace
 
 - For Data Analyst people -> you can use **Databricks SQL persona-based environment**
 
-#### 2.1 Workspace
+#### 3.1 Workspace
 - Organize objects like *notebooks*, *libraries*, *experiments*, *queries* and *dashboards*.
 - Provides access to *data*
 - Provides computational resources like *clusters* and *jobs*
@@ -45,7 +67,7 @@ Other topics related to *Delta Tables*:
 - You can switch between workspaces.
 - You can view the **new** databricks SQL queries, dashboards and alerts. **BUT**, to view the existing ones you need to **migrate** them into the wkspace browser
 
-#### 2.1.0 Databricks Repos
+#### 3.1.0 Databricks Repos
 You can do the following things:
 - Clone, push and pull from a remote Git repository
 - Create and manage branches (development work)
@@ -61,7 +83,7 @@ You can do the following things:
 | | Commit and push code (D)  |   | | 
 
 
-#### 2.2 Clusters (Databricks Computer Resource)
+#### 3.2 Clusters (Databricks Computer Resource)
 - Provide unified platform for many use cases: *production ETL*, *pipelines*, *streaming analytics*, *ad-hoc analytics* and *ML*.
 
 - **Cluster Types**:
@@ -86,7 +108,7 @@ Restart, Terminate and Delete a Cluster
 - **Terminate** -> *stop* but maintain same configurations so we can use **Restart** button to set new cloud resources.
 - **Delete** -> stop our cluster and remove the configurations.
 
-#### 2.3 Notebooks
+#### 3.3 Notebooks
 
 Attach to a cluster
 - Remember that a notebook provides **cell-by-cell execution of code**
@@ -135,9 +157,9 @@ Downloading Notebooks
 Clearing Notebook States
 * **Clear** menu and select **Clear State & Clear Outputs**
 
-### 3 Delta Tables
+### 4 Delta Tables
 
-3.1 Creating a Delta Table
+4.1 Creating a Delta Table
 ```sql
 CREATE TABLE IF NOT EXISTS students
 	(	id INT, 
@@ -146,39 +168,39 @@ CREATE TABLE IF NOT EXISTS students
 	);
 ```
 
-3.2 Inserting Data (`COMMIT`is not required)
+4.2 Inserting Data (`COMMIT`is not required)
 ```sql
 INSERT INTO students VALUES (1, "Yve", 1.0);
 --Inserting multiple rows in 1 INSERT
 INSERT INTO students
 VALUES
 	(4, "Ted", 4.1),
-	(5, "Tiffany", 3.5),
+	(5, "Tiffany", 4.5),
 	(6, "Vini", 4.0)
 ```
 
-3.3 Querying a Delta Table
+4.3 Querying a Delta Table
 ```sql
 SELECT * FROM students
 ```
 * Every `SELECT`will return the **most recent version of the table**
 * Concurrent reads is limited only the **limitations** of object storage (depending on the cloud vendor).
 
-3.4 Updating Records (1st snapshot 2nd update)
+4.4 Updating Records (1st snapshot 2nd update)
 ```sql
 UPDATE students
 SET value = value + 1
 WHERE name LIKE "%T"
 ```
 
-3.5 Deleting Records
+4.5 Deleting Records
 ```sql
 DELETE students 
 WHERE value > 6
 ```
 * If you delete the entire table, you will see -1 as a result of the numbers of rows affected. This means an entire directory of data has been removed
 
-3.6 Merge Records
+4.6 Merge Records
 ```sql
 MERGE INTO students s
 USING students_updated u
@@ -191,12 +213,12 @@ WHEN NOT MATCHED AND u.type = "insert"
 	THEN INSERT *
 ```
 
-3.7 Dropping Table
+4.7 Dropping Table
 ```sql
 DROP TABLE students
 ```
 
-3.8 Examining Table Details (Using the **Hive metastore**)
+4.8 Examining Table Details (Using the **Hive metastore**)
 ```sql
 -- Show important metadata about our table (columns and partitioning)
 DESCRIBE EXTENDED students
@@ -224,7 +246,7 @@ DESCRIBE HISTORY students
 */
 ```
 
-3.9 Explore Delta Lake FILES
+4.9 Explore Delta Lake FILES
 ```python
 %python
 display(dbutils.fs.ls(f"{DA.paths.user_db}/students"))
@@ -244,7 +266,7 @@ The result displays 2 important columns:
 '''
 ```
 
-3.10 Compacting Small Files and Indexing
+4.10 Compacting Small Files and Indexing
 * `OPTIMIZE` command helps us to combine records and rewriting results 
 * We can **optionally** specify the field(s) for `ZORDER`indexing.
 ```sql
@@ -256,12 +278,12 @@ SELECT * FROM students
 VERSION AS OF 3
 ```
 
-3.11 Rollback Versions
+4.11 Rollback Versions
 ```sql
 RESTORE TABLE students TO VERSION AS OF 8
 ```
 
-3.12 Purge Old Data Files
+4.12 Purge Old Data Files
 ```sql
 SET spark.databricks.delta.retentionDurationCheck.enabled = false;
 SET spark.databricks.delta.vacuum.logging.enabled = true;
