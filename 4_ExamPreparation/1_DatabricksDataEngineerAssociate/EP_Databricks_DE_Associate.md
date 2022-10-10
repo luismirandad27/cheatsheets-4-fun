@@ -117,7 +117,7 @@ Restart, Terminate and Delete a Cluster
 - Cluster terminates -> VMs/Ops Memory purged, Attached Volume deleted, Networks between nodes removed
 - **Restart** -> to clear cache or to reset compute environment.
 - **Terminate** -> *stop* but maintain same configurations so we can use **Restart** button to set new cloud resources.
-- **Delete** -> stop our cluster and remove the configurations.
+- **Delete** -> stop our cluster and remove the configurations, this include the network and VM deletion and the storage disk removal.
 
 If a cluster is not enable to start, check **cluster event logs**.
 
@@ -626,10 +626,16 @@ ALTER TABLE purchase_dates ADD CONSTRAINT valid_date CHECK (date > '2020-01-01')
 
 --Using data quality checks
 
+ALTER TABLE purchase_dates ADD CONSTRAINT valid_date EXPECT(date > '2020-01-01');
+-- Violated data are added to target dataset and recorded as invalid in event log
+
 --If record violates then drop row on dataset
 ALTER TABLE purchase_dates ADD CONSTRAINT valid_date EXPECT(date > '2020-01-01') ON VIOLATION DROP ROW;
+--Violated data are dropped from the target dataset and recorded as invalid in event log
+
 --If record violates then job will fail
 ALTER TABLE purchase_dates ADD CONSTRAINT valid_date EXPECT(date > '2020-01-01') ON VIOLATION FAIL UPDATE;
+--The job will stop its execution
 ```
 
 ```sql
@@ -830,6 +836,7 @@ WHERE size(items) > 2;
 - `collect_set`: collect unique values for a field.
 - `flatten`: multiple arrays can be combined into a single array
 - `array_distinct`: removes duplicate elements from an array
+- `array_union`: join 2 arrays and remove duplicate elements 
 *Use them on aggregations*
 
 ```sql
@@ -1048,7 +1055,7 @@ There is a column called **_rescued_data** that helps to record the data that co
 		.createOrReplaceTempView("streaming_tmp_vw"))
 ```
 
-How to stop a stream with python
+**How to stop a stream with python** (important!)
 ```python
 for s in spark.streams.active:
 	print("Stopping " + s.id)
@@ -1311,6 +1318,7 @@ About the schedule:
 
 **Updating a Dashboard**
 - On the Dashboard section, you can attach your SQL Warehouse and select a type of visualization element (chart, etc) and attach a Query.
+- If you see that a refresh of a dashboard is taking too long, check the **query history**
 
 **Set a Query Refresh Schedule**
 - On the SQL Query editor you can schedule the refresh execution of a query table.
@@ -1319,6 +1327,8 @@ About the schedule:
 **Alerts**
 - You can create an alert and be notified via email.
 - You can use default template, custom templates and send through different apps like Webhook.
+
+*You can modify parameters (like timezone) with **SQL configuration parameter** inside **SQL admin console***
 
 ## Topic 4: Understand and follow best security practices
 
@@ -1405,3 +1415,5 @@ df.write.saveAsTable(
 	name = "<catalog>.<new_schema>.<new_table>"
 )
 ```
+
+By the way, if you want to make fine-grained access control on rows and columns, you can use *dynamic view functions*
