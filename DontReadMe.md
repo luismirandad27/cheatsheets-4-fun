@@ -6,7 +6,7 @@ During my days learning new things by myself and at the college, I will give som
 
 I hope that these things can help you with your projects and learning. Enjoy!
 
-Last Update: June 24, 2022
+Last Update: October 11, 2022
 
 First version (draft):
 
@@ -14,7 +14,7 @@ Directory Tree:
 - Big Data & Spark Programming
   - Pyspark with Python (learning with DataBricks)
   - Pyspark with Scala
-  - Databricks Platform (Data Engineering, Data Science and Data Analyst Workspaces)
+  - Databricks Platform (Data Engineering, Data Science and Data Analyst Workspaces) NEW!
 - Machine Learning
 - Programming Languages
   - C#
