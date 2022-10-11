@@ -8,7 +8,7 @@ I hope that these things can help you with your projects and learning. Enjoy!
 
 Last Update: October 11, 2022
 
-First version (draft):
+Version 1.1.0:
 
 Directory Tree:
 - Big Data & Spark Programming
