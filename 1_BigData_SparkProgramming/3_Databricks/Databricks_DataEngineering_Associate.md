@@ -1,5 +1,4 @@
 #  Databricks Data Engineer Associate
-#DataEng_Roadmap/Databricks
 
 ## Topic 1: Understand how to use and the benefits of using the Databricks Lakehouse Platform and its tools
 ### 1 What is the *Databricks Lakehouse*?
@@ -31,7 +30,7 @@ Other topics related to *Delta Tables*:
 |---|---|---|
 | Clean and structured data for BI Analytics  | Not for BI reporting due to its unvalidated nature  |  Low query latency and high reliability for BI/A |
 |  Manage property formats | Stores data of any nature in any format  | Deals with many standard data formats  |
-|   |   | ++ Indexis protocols optimized for ML and DS |
+|   |   | ++ Index protocols optimized for ML and DS |
 
 **Other features in a Data Lakehouse**
 - Transaction Support (ACID)
@@ -45,10 +44,10 @@ Other topics related to *Delta Tables*:
 
 ### 2 High-level architecture
 
-*Control Plane*
+<ins>*Control Plane*</ins>
 - Backend services
 
-*Data Plane*
+<ins>*Data Plane*</ins>
 - Is where your data resides and also is processed.
 - You can use connectors to connect to external data sources.
 - You can ingest data from external streaming data sources.
@@ -61,11 +60,11 @@ Other topics related to *Delta Tables*:
 
 #### 3.1 Workspace
 - Organize objects like *notebooks*, *libraries*, *experiments*, *queries* and *dashboards*.
-- Provides access to *data*
-- Provides computational resources like *clusters* and *jobs*
-- Can be managed by the **workspace UI** or **Databricks REST API reference**
+- Provides access to *data*.
+- Provides computational resources like *clusters* and *jobs*.
+- Can be managed by the **workspace UI** or **Databricks REST API reference**.
 - You can switch between workspaces.
-- You can view the **new** databricks SQL queries, dashboards and alerts. **BUT**, to view the existing ones you need to **migrate** them into the wkspace browser
+- You can view the **new** databricks SQL queries, dashboards and alerts. **BUT**, to view the existing ones you need to **migrate** them into the wkspace browser.
 
 #### 3.1.0 Databricks Repos
 You can do the following things:
@@ -87,13 +86,13 @@ You can do the following things:
 - Provide unified platform for many use cases: *production ETL*, *pipelines*, *streaming analytics*, *ad-hoc analytics* and *ML*.
 
 **Cluster Types**:
-- <ins>*All-purpose clusters*</ins>: the user can manually terminate and restart them. **Multiple users** can share such clusters (*collaborative interactive analysis*)
-- <ins>*Job clusters*</ins>: dealed by the *Databricks job scheduler*
+- *All-purpose clusters*: the user can manually terminate and restart them. **Multiple users** can share such clusters (*collaborative interactive analysis*)
+- *Job clusters*: dealed by the *Databricks job scheduler*
 
 **Cluster Modes**:
-- <ins>*Standard mode clusters*</ins>: now called *No Isolation Shared access*.
-- <ins>*High Concurrency Mode with Table ACLs*</ins>: now called *Shared access mode*. **Ideañ for group of users who share resources**.
-- <ins>*Single Node*</ins>:
+- *Standard mode clusters*: now called *No Isolation Shared access*.
+- *High Concurrency Mode with Table ACLs*: now called *Shared access mode*. **Ideañ for group of users who share resources**.
+- *Single Node*
 
 **Autoscaling**:
 - Some workloads are NOT compatible with Autoscaling like *spark-submit* and *python* packages.
@@ -141,11 +140,11 @@ Create a new cell with `B` key
 **Remember**: Notebooks support *tracking* and *versioning*.
 
 Magic Commands
-- Identified by `%` character
+- Identified by `%` character.
 - Only 1 magic command per cell and must be the first thing in a cell.
-- **Language Magics** -> `%sql`, `%python`
-- **Markdown** -> for markdown language
-- **Running command** -> `%run` this is to run a notebook from another notebook (its temp views and local declarations are going to be part of the calling notebook)
+- **Language Magics** -> `%sql`, `%python`.
+- **Markdown** -> for markdown language.
+- **Running command** -> `%run` this is to run a notebook from another notebook (its temp views and local declarations are going to be part of the calling notebook).
 	- `%run ../Includes/Classroom-Setup-0.12`
 	
 
@@ -375,7 +374,7 @@ USE ${da.db_name}_default_location
 CREATE OR REPLACE TEMPORARY VIEW temp_delays USING CSV OPTIONS (
 	path 	= ‘${DA.paths_datasets}/flights/departuredelays.csv’,
 	header	= ‘true’,
-	mode 	= “FAILFAST” —-abort file parsing with RuntimeException  
+	mode 	= “FAILFAST” --abort file parsing with RuntimeException  
 );
 
 CREATE OR REPLACE TABLE external_table LOCATION ‘{da.paths.working_dir}/external_table’ AS SELECT * FROM temp_delays;
@@ -1107,8 +1106,6 @@ When to use AUTOLOADER and COPY INTO
 - Silver Layer: holds some refined data from the bronze layer. We can make joins and create other columns
 - Gold Layer: tables with business-level aggregates for visualization and dashboarding.
 
-![](assets/multiHopArchitecture.jpeg)
-
 #### 3.2 Bronze
 ```python
 # Reading the data Stream
@@ -1417,3 +1414,8 @@ df.write.saveAsTable(
 ```
 
 By the way, if you want to make fine-grained access control on rows and columns, you can use *dynamic view functions*
+
+###### Reference
+> Databricks Academy. Data Engineering with Databricks [Github Project]. GitHub
+> https://github.com/databricks-academy/data-engineering-with-databricks-english
+
