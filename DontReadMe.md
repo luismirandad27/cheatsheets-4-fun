@@ -14,6 +14,7 @@ Directory Tree:
 - Big Data & Spark Programming
   - Pyspark with Python (learning with DataBricks)
   - Pyspark with Scala
+  - Databricks Platform (Data Engineering, Data Science and Data Analyst Workspaces)
 - Machine Learning
 - Programming Languages
   - C#
