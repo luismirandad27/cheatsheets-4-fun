@@ -1,7 +1,5 @@
 # CheatSheet4Fun
 
-Now that I've got your attention, welcome!
-
 During my days learning new things by myself and at the college, I will give some meaningful cheatsheets for every topic that I'll review. I would try to put more things related to Big Data & Spark, Cloud Computing, some Machine Learning stuff and programming languages of course.
 
 I hope that these things can help you with your projects and learning. Enjoy!
