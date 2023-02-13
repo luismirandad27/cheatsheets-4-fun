@@ -1,9 +1,14 @@
 # Introduction to MongoDB
 
-- MongoDB database = set of databases
-- database = set of multiple collections
-- collection = different types of objects
-- object == document
+### Charactersitics:
+
+- MongoDB database: set of databases
+- database: set of multiple collections
+- collection: different types of objects
+- object: document
+- Dynamic Schema (**fluent polymorphism**)
+
+### Document Representation
 
 ```json
 {
@@ -16,9 +21,10 @@
 //[] -> arrays
 ```
 
-- Dynamic Schema (**fluent polymorphism**)
+---
 
 ## Using MongoDB Server
+<br/>
 
 Start MongoDB by using brew services
 ```bash
@@ -38,193 +44,142 @@ On terminal
 Switch to a database (you dont have to create a new one)
 
 ```bash
-test> use inventory
-switched to db inventory
+use inventory
 ```
 *MongoDB is case-sensitive*
 
 Clear the prompt
 
 ```bash
-test> cls
+cls
 ```
 
 Show available databases
 ```bash
-test> show dbs
+show dbs
+-----------------
 admin   40.00 KiB
 config  12.00 KiB
 local   80.00 KiB
 ```
-
-Creating a collection called `testCol` and insert one object
+## Collections
+Creating a collection called `funCol` and insert one object
 ```bash
-test> db.testCol.insertOne({x:1})
-{
-  acknowledged: true,
-  insertedId: ObjectId("63e2be52822e5ceedcc6561e")
-}
+db.funCol.insertOne({attribute_name:"Hello World"})
 ```
 
-Retrieve the information stored in the collecting
-```bash
-test> db.testCol.find({})
-[
-  { _id: ObjectId("63e2be52822e5ceedcc6561e"), x: 1 },
-  { _id: ObjectId("63e2bf05822e5ceedcc6561f"), x: 1, y: 2 }
-]
-test>
+Retrieve the information stored in the collecting with `find`
+```
+db.testCol.find({})
 ```
 
-Insert multiple documents
+### Inserting Data
+<br/>
+
+Insert one document with `insertOne`
 ```bash
-testDB> db.inventory.insertMany( [
-...  { item: "canvas", qty: 100, size: { h: 28, w: 35.5, uom: "cm" }, status: "A" },
-...  { item: "journal", qty: 25, size: { h: 14, w: 21, uom: "cm" }, status: "A" },
-...  { item: "mat", qty: 85, size: { h: 27.9, w: 35.5, uom: "cm" }, status: "A" },
-...  { item: "mousepad", qty: 25, size: { h: 19, w: 22.85, uom: "cm" }, status: "P" },
-...  { item: "notebook", qty: 50, size: { h: 8.5, w: 11, uom: "in" }, status: "P" },
-...  { item: "paper", qty: 50, size: { h: 8.5, w: 11, uom: "in" }, status: "A" },
-...  { item: "paper", qty: 100, size: { h: 8.5, w: 11, uom: "in" }, status: "D" },
-...  { item: "planner", qty: 75, size: { h: 22.85, w: 30, uom: "cm" }, status: "D" },
-...  { item: "postcard", qty: 45, size: { h: 10, w: 15.25, uom: "cm" }, status: "A" },
-...  { item: "postcard", qty: 70, size: { h: 10, w: 15.25, uom: "cm" }, status: "D" },
-...  { item: "sketchbook", qty: 80, size: { h: 14, w: 21, uom: "cm" }, status: "A" },
-...  { item: "sketch pad", qty: 95, size: { h: 22.85, w: 30.5, uom: "cm" }, status: "A" }
+db.gameInventory.insertOne(
+...  { game: "Fifa 23", stock: 100, tags:["multiplayer","soccer"], details: { year: 2022, company: "EA", rating: 4.5 }, status: "On Sale" });
+```
+Insert multiple documents with `insertMany`
+```bash
+db.gameInventory.insertMany( [
+...  { game: "Fifa 23", stock: 100, tags:["multiplayer","soccer"], details: { year: 2022, company: "EA", rating: 4.5 }, status: "On Sale" },
+...  { game: "Battlefield 2042", stock: 25, tags:["multiplayer","shooter"], details: { year: 2021, company: "EA", rating: 4.2 }, status: "On Sale" },
+...  { item: "Call of Duty MW 2", stock: 85, tags:["multiplayer","shooter"], details: { year: 2022, company: "Activision", rating: 5 }, status: "On Sale" },
+...  { item: "Crash Bandicoot", stock: 0, tags:["adventure","arcade"], details: { year: 2019, company: "Naughty Dog", rating: 3.9 }, status: "Out of Stock" },
+...  { item: "Stray", stock: 0, tags:["adventure","futuristic"], details: { year: 2022, company: "BlueTwelve Studio", rating: 4.5 }, status: "Out of Stock" }
 ... ] );
-{
-  acknowledged: true,
-  insertedIds: {
-    '0': ObjectId("63e2c1d2822e5ceedcc65620"),
-    '1': ObjectId("63e2c1d2822e5ceedcc65621"),
-    '2': ObjectId("63e2c1d2822e5ceedcc65622"),
-    '3': ObjectId("63e2c1d2822e5ceedcc65623"),
-    '4': ObjectId("63e2c1d2822e5ceedcc65624"),
-    '5': ObjectId("63e2c1d2822e5ceedcc65625"),
-    '6': ObjectId("63e2c1d2822e5ceedcc65626"),
-    '7': ObjectId("63e2c1d2822e5ceedcc65627"),
-    '8': ObjectId("63e2c1d2822e5ceedcc65628"),
-    '9': ObjectId("63e2c1d2822e5ceedcc65629"),
-    '10': ObjectId("63e2c1d2822e5ceedcc6562a"),
-    '11': ObjectId("63e2c1d2822e5ceedcc6562b")
-  }
-}
 ```
-Counting Documents
-```bash
-testDB> db.inventory.countDocuments({})
-12
-```
+### Querying Documents
+<br/>
 
-Delete One Document
-```bash
-testDB> db.inventory.deleteOne({ status: "P" })
-{ acknowledged: true, deletedCount: 1 }
+Retrieving all documents
 ```
-Make filters
-```bash
-testDB> db.inventory.find({status:"D"})
-[
-  {
-    _id: ObjectId("63e2c3cd822e5ceedcc6563e"),
-    item: 'paper',
-    qty: 100,
-    size: { h: 8.5, w: 11, uom: 'in' },
-    status: 'D'
-  },
-  {
-    _id: ObjectId("63e2c3cd822e5ceedcc6563f"),
-    item: 'planner',
-    qty: 75,
-    size: { h: 22.85, w: 30, uom: 'cm' },
-    status: 'D'
-  },
-  {
-    _id: ObjectId("63e2c3cd822e5ceedcc65641"),
-    item: 'postcard',
-    qty: 70,
-    size: { h: 10, w: 15.25, uom: 'cm' },
-    status: 'D'
-  }
-]
+db.gameInventory.find({})
 ```
-Using operators
+Single filter condition
 ```bash
-testDB> db.inventory.find( { $and: [ {status:"A"},{ qty: {$lt:30}} ] } )
-[
-  {
-    _id: ObjectId("63e2c3cd822e5ceedcc65639"),
-    item: 'journal',
-    qty: 25,
-    size: { h: 14, w: 21, uom: 'cm' },
-    status: 'A'
-  }
-]
-testDB>
+db.inventory.find({status:"On Sale"})
 ```
-Implicit `and`
-```bash
-testDB> db.inventory.find( { status : "A",qty:{$lt:30} } )
-[
-  {
-    _id: ObjectId("63e2c3cd822e5ceedcc65639"),
-    item: 'journal',
-    qty: 25,
-    size: { h: 14, w: 21, uom: 'cm' },
-    status: 'A'
-  }
-]
-```
-*There is no implicit OR*
+*The Comparison Operators*
+| Operator | Description                                                         |
+| -------- | ------------------------------------------------------------------- |
+| $eq      | Matches values that are equal to a specified value.                 |
+| $gt      | Matches values that are greater than a specified value              |
+| $gte     | Matches values that are greater than or equal to a specified value. |
+| $in      | Matches any of the values specified in an array.                    |
+| $lt      | Matches values that are less than a specified value.                |
+| $lte     | Matches values that are less than or equal to a specified value.    |
+| $ne      | Matches all values that are not equal to a specified value.         |
+| $nin     | Matches none of the values specified in an array                    |
 
-Pattern Matching
-```bash
-testDB> db.inventory.find( { item: /ket/ } ) // Contains Ket
-[
-  {
-    _id: ObjectId("63e2c3cd822e5ceedcc65642"),
-    item: 'sketchbook',
-    qty: 80,
-    size: { h: 14, w: 21, uom: 'cm' },
-    status: 'A'
-  },
-  {
-    _id: ObjectId("63e2c3cd822e5ceedcc65643"),
-    item: 'sketch pad',
-    qty: 95,
-    size: { h: 22.85, w: 30.5, uom: 'cm' },
-    status: 'A'
-  }
-]
-```
+*Logical Operators*
+| Operator | Description                                                                                             |
+| -------- | ------------------------------------------------------------------------------------------------------- |
+| $and     | Joins query clauses with a logical AND returns all documents that match the conditions of both clauses. |
+| $not     | Inverts the effect of a query expression and returns documents that do not match the query expression.  |
+| $nor     | Joins query clauses with a logical NOR returns all documents that fail to match both clauses.           |
+| $or      | Joins query clauses with a logical OR returns all documents that match the conditions of either clause. |
 
-Update First Document
+Making multiple conditions
 ```bash
-testDB> db.inventory.updateOne(
-... { item: "paper" },
-... { $set: { "size.uom": "cm", status: "P" } },
-... );
-{
-  acknowledged: true,
-  insertedId: null,
-  matchedCount: 1,
-  modifiedCount: 1,
-  upsertedCount: 0
+db.gameInventory.find({$and:[{status:"On Sale"},{stock:{$lt:30}}]})
+::could be like this too
+db.gameInventory.find({status:"On Sale", stock:{$lt:30}})
 ```
+Making multiple conditions **on the same field**
+```bash
+db.gameInventory.find({$and:[{stock:{$gt:30}},{stock:{$lt:50}}]})
+::could be like this too
+db.gameInventory.find({stock:{$gt:30,$lt:50}})
+```
+Including multiple logical operators
+```bash
+db.gameInventory.find({
+  status:"On Sale",
+  $or:{[{stock:{$gt:30}},{details.year:{$gt:2018}}]}
+})
+```
+Regular Expression Patterns
+| Pattern | Description                                                           |
+| ------- | --------------------------------------------------------------------- |
+| .       | Matches any character except a newline character.                     |
+| \*      | Matches zero or more occurrences of the preceding character or group. |
+| +       | Matches one or more occurrences of the preceding character or group.  |
+| ?       | Matches zero or one occurrence of the preceding character or group.   |
+| [ ]     | Matches any character within the brackets.                            |
+| [^ ]    | Matches any character not within the brackets.                        |
+| \\w     | Matches any word character (alphanumeric character plus underscore).  |
+| \\W     | Matches any non-word character.                                       |
+| \\d     | Matches any digit character.                                          |
+| \\D     | Matches any non-digit character.                                      |
+| \\s     | Matches any whitespace character (space, tab, newline, etc.).         |
+| \\S     | Matches any non-whitespace character.                                 |
+| ^       | Matches the start of the string.                                      |
+| $       | Matches the end of the string.                                        |
+| \\b     | Matches a word boundary.                                              |
+| \\B     | Matches a non-word boundary.                                          |
 
 
 Show all collections
 ```bash
-test> show collections
+show collections
+
+--------
 testCol
 ```
 Drop a collection
 ```bash
-test> db.testCol.drop()
+db.testCol.drop()
+
+------
 true
 ```
 Display the current db
 ```bash
-test> db
+db
+
+-----
 test
 ```
