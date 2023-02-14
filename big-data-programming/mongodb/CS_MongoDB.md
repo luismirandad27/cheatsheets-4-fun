@@ -168,6 +168,8 @@ db.gameInventory.find({item:/ttle/}) //contains ttle
 ```bash
 db.gameInventory.find({item:d$}) //ends with d
 ```
+```bash
+db.gameInventory.find({item:{$in:[/^m/,/^p/]}}) //starts with m or p
 
 ### Sorting Documents
 <br/>
