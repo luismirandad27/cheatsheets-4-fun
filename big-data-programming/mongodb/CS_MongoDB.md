@@ -161,6 +161,14 @@ Regular Expression Patterns
 | \\b     | Matches a word boundary.                                              |
 | \\B     | Matches a non-word boundary.                                          |
 
+Example:
+```bash
+db.gameInventory.find({item:/ttle/}) //contains ttle
+```
+```bash
+db.gameInventory.find({item:d$}) //ends with d
+```
+
 ### Sorting Documents
 <br/>
 
@@ -247,15 +255,17 @@ db.gameInventory.find({stockInfo:{$elemMatch:{stock:{$gt:5,$lte:10}}}})
 ### NULL or Missing Fields
 <br/>
 
+By using BSON Null Type
 ```bash
 db.gameInventory.find({status:{$type:10}})
 ```
-or
+To look for documents that do not contain an specific field
 ```bash
 db.gameInventory.find({status:{$exists:false}})
 ```
 ### Project Fields to return from query
 <br/>
+
 To include item and details fields
 ```bash
 db.gameInventory.find({status:"On Sale"},{item:1,details:1})
@@ -268,6 +278,8 @@ To include embedded documents
 ```bash
 db.gameInventory.find({status:"On Sale"},{item:1, status:1, "details.year":1})
 ```
+
+Remember to not add exclusions if you are including inclusion projection (error)
 
 ### Distinct
 ```bash
