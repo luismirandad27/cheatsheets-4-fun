@@ -79,17 +79,17 @@ db.testCol.find({})
 Insert one document with `insertOne`
 ```bash
 db.gameInventory.insertOne(
-...  { game: "Fifa 23", stock: 100, tags:["multiplayer","soccer"], details: { year: 2022, company: "EA", rating: 4.5 }, status: "On Sale" });
+{ game: "Fifa 23", stock: 100, tags:["multiplayer","soccer"], details: { year: 2022, company: "EA", rating: 4.5 }, status: "On Sale" });
 ```
 Insert multiple documents with `insertMany`
 ```bash
 db.gameInventory.insertMany( [
-...  { game: "Fifa 23", stock: 100, tags:["multiplayer","soccer"], details: { year: 2022, company: "EA", rating: 4.5 }, status: "On Sale" },
-...  { game: "Battlefield 2042", stock: 25, tags:["multiplayer","shooter"], details: { year: 2021, company: "EA", rating: 4.2 }, status: "On Sale" },
-...  { item: "Call of Duty MW 2", stock: 85, tags:["multiplayer","shooter"], details: { year: 2022, company: "Activision", rating: 5 }, status: "On Sale" },
-...  { item: "Crash Bandicoot", stock: 0, tags:["adventure","arcade"], details: { year: 2019, company: "Naughty Dog", rating: 3.9 }, status: "Out of Stock" },
-...  { item: "Stray", stock: 0, tags:["adventure","futuristic"], details: { year: 2022, company: "BlueTwelve Studio", rating: 4.5 }, status: "Out of Stock" }
-... ] );
+{ game: "Fifa 23", stock: 100, tags:["multiplayer","soccer"], details: { year: 2022, company: "EA", rating: 4.5 }, status: "On Sale", storeId:[1,2,3] },
+{ game: "Battlefield 2042", stock: 25, tags:["multiplayer","shooter"], details: { year: 2021, company: "EA", rating: 4.2 }, status: "On Sale", storeId:[5,8,9] },
+{ item: "Call of Duty MW 2", stock: 85, tags:["multiplayer","shooter"], details: { year: 2022, company: "Activision", rating: 5 }, status: "On Sale", storeId:[1,7,9] },
+{ item: "Crash Bandicoot", stock: 0, tags:["adventure","arcade"], details: { year: 2019, company: "Naughty Dog", rating: 3.9 }, status: "Out of Stock", storeId:[4,5,6] },
+{ item: "Stray", stock: 0, tags:["adventure","futuristic"], details: { year: 2022, company: "BlueTwelve Studio", rating: 4.5 }, status: "Out of Stock", storeId:[8,9,10] }
+] );
 ```
 ### Querying Documents
 <br/>
@@ -161,25 +161,125 @@ Regular Expression Patterns
 | \\b     | Matches a word boundary.                                              |
 | \\B     | Matches a non-word boundary.                                          |
 
+### Sorting Documents
+<br/>
 
-Show all collections
 ```bash
-show collections
-
---------
-testCol
+db.gameInventory.find({}).sort({stock:1, status: -1})
 ```
-Drop a collection
+
+### Embedded/Nested Documents
+<br/>
+
+Filter with equility match (requiring an exact match of the specified value document, **including the field older**)
 ```bash
-db.testCol.drop()
-
-------
-true
+db.gameInventory.find({detail:{year:2022, company:"EA",rating:4}})
 ```
-Display the current db
+Nested Fields -> equality match
 ```bash
-db
-
------
-test
+db.gameInventory.find({"details.year":2022})
 ```
+Nested Fields -> **AND**
+```bash
+db.gameInventory.find({"detail.year":{$lt:2019},"detail.company":"EA", status:"On Sale"})
+```
+Nested Fields -> **OR**
+```bash
+db.gameInventory.find({$or:[{"detail.year":{$lt:2019}},{"detail.company":"EA"},{status:"On Sale"}]})
+```
+### Querying Array
+<br/>
+
+Filtering where *value* is the exact array to match, **include the order of elements**
+```bash
+db.gameInventory.find({tags:["multiplayer","shooter"]})
+```
+Filtering where the array contains the elements, **without regard to order the elemens in the array**
+```bash
+db.gameInventory.find({tags:{$all:["multiplayer","shooter"]}})
+```
+Multiple conditions with arrays #1:
+One element can satisfy the first condition, another element (maybe the same one) can satisfy the second condition
+```bash
+db.gameInventory.find({storeId:{$gt:5,$lt8}})
+```
+Multiple conditions with arrays #2:
+The element must match between both conditions
+```bash
+db.gameInventory.find({storeId:{$elemMatch:{$gt:5, $lt:8}}})
+```
+Query for an element by the array index position (**array starts with index 0**)
+```bash
+db.gameInventory.find({"storeId.1":{$gt:1}})
+```
+Query by the size of the array
+```bash
+db.gameInventory.find({tags:{$size:2}})
+```
+
+### Nested Document in an Array
+<br/>
+
+```bash
+db.gameInventory.insertMany( [
+{ game: "Fifa 23", tags:["multiplayer","soccer"], details: { year: 2022, company: "EA", rating: 4.5 }, status: "On Sale", stockInfo:[{store: "A", stock: 5}]},
+{ game: "Battlefield 2042", tags:["multiplayer","shooter"], details: { year: 2021, company: "EA", rating: 4.2 }, status: "On Sale",stockInfo:[{store: "A", stock: 5},{store: "B", stock: 10}] },
+{ item: "Call of Duty MW 2", tags:["multiplayer","shooter"], details: { year: 2022, company: "Activision", rating: 5 }, status: "On Sale", stockInfo:[{store: "A", stock: 8},{store: "B", stock: 2},{store:"C", stock:3}]},
+{ item: "Crash Bandicoot", tags:["adventure","arcade"], details: { year: 2019, company: "Naughty Dog", rating: 3.9 }, status: "Out of Stock",stockInfo:[] },
+{ item: "Stray", tags:["adventure","futuristic"], details: { year: 2022, company: "BlueTwelve Studio", rating: 4.5 }, status: "Out of Stock", stockInfo:[] }
+] );
+```
+Query based on nested document in an Array -> **order matters!**
+```bash
+db.gameInventory.find({stockInfo:{store:"A",stock:5}})
+```
+Adding operators
+```bash
+db.gameInventory.find({"stockInfo.stock":{$lte: 5}})
+```
+Multiple conditions for a nested document
+```bash
+db.gameInventory.find({stockInfo:{$elemMatch:{stock:10,store:"B"}}})
+```
+```bash
+db.gameInventory.find({stockInfo:{$elemMatch:{stock:{$gt:5,$lte:10}}}})
+```
+### NULL or Missing Fields
+<br/>
+
+```bash
+db.gameInventory.find({status:{$type:10}})
+```
+or
+```bash
+db.gameInventory.find({status:{$exists:false}})
+```
+### Project Fields to return from query
+<br/>
+To include item and details fields
+```bash
+db.gameInventory.find({status:"On Sale"},{item:1,details:1})
+```
+To excluede details field
+```bash
+db.gameInventory.find({status:"On Sale"},{details:0})
+```
+To include embedded documents
+```bash
+db.gameInventory.find({status:"On Sale"},{item:1, status:1, "details.year":1})
+```
+
+### Distinct
+```bash
+db.gameInventory.distinct("details.company")
+```
+---
+
+### Follow me on:
+<img src="https://cdn-icons-png.flaticon.com/512/2175/2175377.png" alt="Markdown Monster icon" style="height:20px;width:20px;border-radius:5px"/> GitHub: https://github.com/luismirandad27
+
+&nbsp;
+<img src="https://cdn-icons-png.flaticon.com/512/5968/5968933.png" alt="Markdown Monster icon" style="height:20px;width:20px;border-radius:5px"/> Medium: https://medium.com/@lmirandad27
+
+&nbsp;
+<img src="https://cdn-icons-png.flaticon.com/512/145/145807.png" alt="Markdown Monster icon" style="height:20px;width:20px;border-radius:5px"/> LinkedIn: https://www.linkedin.com/in/lmirandad27/
