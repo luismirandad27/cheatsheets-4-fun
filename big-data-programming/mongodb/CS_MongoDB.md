@@ -1,6 +1,6 @@
 # Introduction to MongoDB
 
-### Charactersitics:
+### Some concepts:
 
 - MongoDB database: set of databases
 - database: set of multiple collections
