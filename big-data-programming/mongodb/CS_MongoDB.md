@@ -86,9 +86,9 @@ Insert multiple documents with `insertMany`
 db.gameInventory.insertMany( [
 { game: "Fifa 23", stock: 100, tags:["multiplayer","soccer"], details: { year: 2022, company: "EA", rating: 4.5 }, status: "On Sale", storeId:[1,2,3] },
 { game: "Battlefield 2042", stock: 25, tags:["multiplayer","shooter"], details: { year: 2021, company: "EA", rating: 4.2 }, status: "On Sale", storeId:[5,8,9] },
-{ item: "Call of Duty MW 2", stock: 85, tags:["multiplayer","shooter"], details: { year: 2022, company: "Activision", rating: 5 }, status: "On Sale", storeId:[1,7,9] },
-{ item: "Crash Bandicoot", stock: 0, tags:["adventure","arcade"], details: { year: 2019, company: "Naughty Dog", rating: 3.9 }, status: "Out of Stock", storeId:[4,5,6] },
-{ item: "Stray", stock: 0, tags:["adventure","futuristic"], details: { year: 2022, company: "BlueTwelve Studio", rating: 4.5 }, status: "Out of Stock", storeId:[8,9,10] }
+{ game: "Call of Duty MW 2", stock: 85, tags:["multiplayer","shooter"], details: { year: 2022, company: "Activision", rating: 5 }, status: "On Sale", storeId:[1,7,9] },
+{ game: "Crash Bandicoot", stock: 0, tags:["adventure","arcade"], details: { year: 2019, company: "Naughty Dog", rating: 3.9 }, status: "Out of Stock", storeId:[4,5,6] },
+{ game: "Stray", stock: 0, tags:["adventure","futuristic"], details: { year: 2022, company: "BlueTwelve Studio", rating: 4.5 }, status: "Out of Stock", storeId:[8,9,10] }
 ] );
 ```
 ### Querying Documents
@@ -166,7 +166,7 @@ Example:
 db.gameInventory.find({item:/ttle/}) //contains ttle
 ```
 ```bash
-db.gameInventory.find({item:d$}) //ends with d
+db.gameInventory.find({item:/d$/}) //ends with d
 ```
 ```bash
 db.gameInventory.find({item:{$in:[/^m/,/^p/]}}) //starts with m or p
