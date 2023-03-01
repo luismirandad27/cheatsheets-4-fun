@@ -287,6 +287,100 @@ Remember to not add exclusions if you are including inclusion projection (error)
 ```bash
 db.gameInventory.distinct("details.company")
 ```
+
+### Aggregation Pipeline
+Let's say that we have the following documents
+
+```bash
+Example
+```
+
+**Aggregations with 2 stages**
+```bash
+db.gameOrders.aggregate([
+                      { $match: {status: "A"} },
+                      { $group: { _id: "$customer_id", total: { $sum: "$amount"}} }
+])
+```
+
+Each element of the array inside the `aggregate([])` are called **Stages**:
+- Stage 1: the `$match` stage filters the documents by the field
+- Stage 2: the `$group` stage will group the documents based `customer_id` and sum the `amount` field.
+
+Let's translate this into SQL:
+```sql
+SELECT customer_id, sum(amount)
+FROM gameOrders
+WHERE status = 'A'
+GROUP BY customer_id
+```
+
+**Aggregation with Multiple Fields**
+```bash
+db.gameOrders.aggregate([
+    {$group: {
+        _id: {customer_id:"$customer_id", status:"$status"},
+        total: {$sum: "$amount"}
+      }
+    }
+])
+```
+*The `_id` refers to the GROUP BY section*
+<br/>
+SQL translation
+```sql
+SELECT customer_id, status, sum(amount)
+FROM gameOrders
+GROUP BY customer_id, status
+```
+
+**Aggregation with 3 stages example**
+```bash
+db.gameOrders.aggregate([
+  {$match:  {status:"A"}},
+  {$group:  {_id:"$customer_id",total:{$sum:"$amount"}}},
+  {$sort:   {_id:1}}
+])
+```
+
+**Aggregation to count the number of elements (before mongodb 5)**
+```bash
+db.gameOrders.aggregate([
+    {$match:{status:"A"}},
+    {$group:{_id:null, order_count:{$sum:1}}}
+])
+```
+**Aggregation to count the number of elements (with mongodb 5)**
+```bash
+db.gameOrders.aggregate([
+    {$match:{status:"A"}},
+    {$group:{_id:null, order_count:{$count:{}}}}
+])
+```
+
+Keep in mind that `count` does not require any parameter. By the way, we have another operations like $min, $max, $avg
+
+### $limit and $skip
+
+### $unwind
+Operator for array handling
+
+```bash
+EXAMPLE
+```
+
+```bash
+db.gameOrders.aggregate([{$unwind:"$tags"}])
+```
+By default is going to ignore null arrays, empty arrays or documents that do not have the array field. To avoid that
+```bash
+db.gameOrders.aggregate([
+  {$unwind:{path:"$sizes",preserveNullAndEmptyArrays:true}}}
+])
+```
+
+
+
 ---
 
 ### Follow me on:
