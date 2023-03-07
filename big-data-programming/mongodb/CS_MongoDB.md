@@ -366,19 +366,35 @@ Keep in mind that `count` does not require any parameter. By the way, we have an
 Operator for array handling
 
 ```bash
-EXAMPLE
+db.gamesInventory.insertMany( [
+{ game: "Fifa 23", ratings:[4,5,4] , stock: [ { store: "A", qty: 5 }, { store: "C", qty: 15 } ] },
+{ game: "Battlefield V",ratings:[2,5,4] , stock: [ { store: "C", qty: 5 } ] },
+{ game: "Stray", ratings:[4,3,3] , stock: [ { store: "A", qty: 60 }, { store: "B", qty: 15 } ] },
+{ game: "Resident Evil 4", ratings:[1,2,4] , stock: [ { store: "A", qty: 40 }, { store: "B", qty: 5 } ] },
+{ game: "Dead Island 2", ratings:[2,2,2] ,stock: [ { store: "B", qty: 15 }, { store: "C", qty: 35 } ] }
+] )
 ```
 
+Calculating the total quantity by game
 ```bash
-db.gameOrders.aggregate([{$unwind:"$tags"}])
-```
-By default is going to ignore null arrays, empty arrays or documents that do not have the array field. To avoid that
-```bash
-db.gameOrders.aggregate([
-  {$unwind:{path:"$sizes",preserveNullAndEmptyArrays:true}}}
+db.gameInventory.aggregate([
+  {$unwind: "$stock"},
+  {$group: {_id:"$game",total_stock:{$sum:"$stock.qty"}}}
 ])
 ```
 
+You don't want to use `unwind`? Let's use `project` instead
+```bash
+db.inventory.aggregate([
+    {$project: { _id:0, game:1, total_stock:{$sum:"$stock.qty"} }}
+]);
+```
+
+Note:
+```
+You may use project when you want to make any aggregation for each document
+But you may use unwind and group when you want to based on any field across all the documents
+```
 
 
 ---
