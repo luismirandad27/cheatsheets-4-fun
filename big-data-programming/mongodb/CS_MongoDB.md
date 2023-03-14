@@ -73,7 +73,7 @@ Retrieve the information stored in the collecting with `find`
 db.testCol.find({})
 ```
 
-### Inserting Data
+## Inserting Data
 <br/>
 
 Insert one document with `insertOne`
@@ -91,7 +91,7 @@ db.gameInventory.insertMany( [
 { game: "Stray", stock: 0, tags:["adventure","futuristic"], details: { year: 2022, company: "BlueTwelve Studio", rating: 4.5 }, status: "Out of Stock", storeId:[8,9,10] }
 ] );
 ```
-### Querying Documents
+## Querying Documents
 <br/>
 
 Retrieving all documents
@@ -287,40 +287,46 @@ Remember to not add exclusions if you are including inclusion projection (error)
 ```bash
 db.gameInventory.distinct("details.company")
 ```
-
-### Aggregation Pipeline
+---
+## Aggregation Pipeline
 Let's say that we have the following documents
 
 ```bash
-Example
+db.gamesInventory.insertMany( [
+{ game: "Fifa 23", company:"EA", price:89.90, stock: [ { store: "A", qty: 5 }, { store: "C", qty: 45 } ], status:"A" },
+{ game: "Battlefield V",company:"EA", price:99.90, stock: [ { store: "C", qty: 75 } ], status:"A" },
+{ game: "Stray", company:"BlueTwelve Studio", price:120.90, stock: [ { store: "A", qty: 60 }, { store: "B", qty: 15 } ], status:"I" },
+{ game: "Resident Evil 4", company:"Konami", price:130.90, stock: [ { store: "A", qty: 40 }, { store: "B", qty: 5 } ], status:"A" },
+{ game: "Dead Island 2", company:"Deep Silver", price:150.90 ,stock: [ { store: "B", qty: 10 }, { store: "C", qty: 35 } ], status:"A" }
+] )
 ```
 
 **Aggregations with 2 stages**
 ```bash
-db.gameOrders.aggregate([
+db.gamesInventory.aggregate([
                       { $match: {status: "A"} },
-                      { $group: { _id: "$customer_id", total: { $sum: "$amount"}} }
+                      { $group: { _id: "$game", total: { $sum: "$price"}} }
 ])
 ```
 
 Each element of the array inside the `aggregate([])` are called **Stages**:
 - Stage 1: the `$match` stage filters the documents by the field
-- Stage 2: the `$group` stage will group the documents based `customer_id` and sum the `amount` field.
+- Stage 2: the `$group` stage will group the documents based `game` and sum the `price` field.
 
 Let's translate this into SQL:
 ```sql
-SELECT customer_id, sum(amount)
-FROM gameOrders
+SELECT game, sum(price)
+FROM gamesInventory
 WHERE status = 'A'
-GROUP BY customer_id
+GROUP BY game
 ```
 
 **Aggregation with Multiple Fields**
 ```bash
-db.gameOrders.aggregate([
+db.gamesInventory.aggregate([
     {$group: {
-        _id: {customer_id:"$customer_id", status:"$status"},
-        total: {$sum: "$amount"}
+        _id: {customer_id:"$game", status:"$status"},
+        total: {$sum: "$price"}
       }
     }
 ])
@@ -329,30 +335,30 @@ db.gameOrders.aggregate([
 <br/>
 SQL translation
 ```sql
-SELECT customer_id, status, sum(amount)
-FROM gameOrders
-GROUP BY customer_id, status
+SELECT game, status, sum(amount)
+FROM gamesInventory
+GROUP BY game, status
 ```
 
-**Aggregation with 3 stages example**
+**Aggregation with 3 stages example (Sorting)**
 ```bash
-db.gameOrders.aggregate([
+db.gamesInventory.aggregate([
   {$match:  {status:"A"}},
-  {$group:  {_id:"$customer_id",total:{$sum:"$amount"}}},
+  {$group:  {_id:"$game",total:{$sum:"$price"}}},
   {$sort:   {_id:1}}
 ])
 ```
 
 **Aggregation to count the number of elements (before mongodb 5)**
 ```bash
-db.gameOrders.aggregate([
+db.gamesInventory.aggregate([
     {$match:{status:"A"}},
     {$group:{_id:null, order_count:{$sum:1}}}
 ])
 ```
 **Aggregation to count the number of elements (with mongodb 5)**
 ```bash
-db.gameOrders.aggregate([
+db.gamesInventory.aggregate([
     {$match:{status:"A"}},
     {$group:{_id:null, order_count:{$count:{}}}}
 ])
@@ -360,24 +366,13 @@ db.gameOrders.aggregate([
 
 Keep in mind that `count` does not require any parameter. By the way, we have another operations like $min, $max, $avg
 
-### $limit and $skip
 
-### $unwind
+### `$unwind`
 Operator for array handling
-
-```bash
-db.gamesInventory.insertMany( [
-{ game: "Fifa 23", ratings:[4,5,4] , stock: [ { store: "A", qty: 5 }, { store: "C", qty: 15 } ] },
-{ game: "Battlefield V",ratings:[2,5,4] , stock: [ { store: "C", qty: 5 } ] },
-{ game: "Stray", ratings:[4,3,3] , stock: [ { store: "A", qty: 60 }, { store: "B", qty: 15 } ] },
-{ game: "Resident Evil 4", ratings:[1,2,4] , stock: [ { store: "A", qty: 40 }, { store: "B", qty: 5 } ] },
-{ game: "Dead Island 2", ratings:[2,2,2] ,stock: [ { store: "B", qty: 15 }, { store: "C", qty: 35 } ] }
-] )
-```
 
 Calculating the total quantity by game
 ```bash
-db.gameInventory.aggregate([
+db.gamesInventory.aggregate([
   {$unwind: "$stock"},
   {$group: {_id:"$game",total_stock:{$sum:"$stock.qty"}}}
 ])
@@ -390,12 +385,105 @@ db.inventory.aggregate([
 ]);
 ```
 
-Note:
+--- 
+## Some Aggregation Examples
+Find the games from EA and Konami that are available at more than two stores. Display the game name and company fields, as well as the total qty of all available stores.
+
+```bash
+db.gamesInventory.aggregate([
+  {$match: {
+    company:{$in:["EA","Konami"]},
+  }},
+  {$project: {
+    _id:0,
+    game:1,
+    company:1,
+    num_stores:{$size:"$stock"},
+    total_qty:{$sum:"$stock.qty"}
+  }},
+  {$match: {
+    num_stores:{$gt:2}
+  }},
+  {
+  $project: {
+    num_stores:0
+  }}
+]);
+
 ```
-You may use project when you want to make any aggregation for each document
-But you may use unwind and group when you want to based on any field across all the documents
+Find each store that has at least 10 Fifa 23 games. Display the store name and the total qty of all Fifa 23 items at the store and sort the result in descending order of the total qty. The result is given below for your reference (the field name and order must be the same)
+
+```bash
+db.gamesInventory.aggregate([
+    {$match: {
+      game:"Fifa 23"
+    }},
+    {$unwind: "$stock"},
+    {$group: {
+      _id: "$stock.store",
+      total_qty: {
+        $sum: "$stock.qty"
+      }
+    }},
+    {$match: {
+      total_qty:{$gte:45}
+    }},
+    {$project: {
+      store:"$_id",
+      total_qty:"$total_qty",
+      _id:0
+    }},
+    {$sort: {
+      total_qty: -1
+    }}
+]);
+
 ```
 
+Find the game(s) that have the lowest total qty at all the stores. The result is given below for your reference (the field name and order must be the same).
+
+```bash
+db.gamesInventory.aggregate([
+    {$project: {
+      game:1,
+      total_qty:{$sum:"$stock.qty"}
+    }},
+    {$group: {
+      _id: "$total_qty",
+      games: {
+        $push: "$$ROOT.game"
+      }
+    }},
+    {$project: {
+      _id:0,
+      games:1,
+      total_qty:"$_id"
+    }},
+    {$sort: {total_qty: 1}},
+    {$limit: 1}
+]);
+```
+*Here we are applying the $push aggregation operator, this will
+change the perspective of the document when we group by the total_qty*
+
+```bash
+[ { games: [ 'Resident Evil 4', 'Dead Island 2' ], total_qty: 45 } ]
+```
+
+Note:
+- You may use project when you want to make any aggregation for each document.
+- But you may use unwind and group when you want to based on any field across all the documents
+
+---
+## Comming up next...
+
+### Lookup
+
+### MapReduce and its deprecation
+
+### PyMongo
+
+## Stay tuned!
 
 ---
 
