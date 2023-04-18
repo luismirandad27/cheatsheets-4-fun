@@ -62,6 +62,91 @@ for document_id in result_info.inserted_ids:
     print("ID: ",document_id)
 ```
 
+#### Using `find`
+
+```python
+# Find documents with status A and price greater than 100.0
+find_dict = {
+    "status":"A",
+    "price":{"$gt":100.00}
+}
+
+# You can omit the filter keyword
+result_info = game_collection.find(filter = find_dict)
+
+# Display the results
+for document in result_info:
+    print(document)
+```
+
+The result should look like this:
+```bash
+{'_id': ObjectId('643f200fb1372d24956079b2'), 'game': 'Resident Evil 4', 'company': 'Konami', 'price': 130.9, 'stock': [{'store': 'A', 'qty': 40}, {'store': 'B', 'qty': 5}], 'status': 'A'}
+{'_id': ObjectId('643f200fb1372d24956079b3'), 'game': 'Dead Island 2', 'company': 'Deep Silver', 'price': 150.9, 'stock': [{'store': 'B', 'qty': 10}, {'store': 'C', 'qty': 35}], 'status': 'A'}
+```
+
+#### Using `find` and `project`
+```python
+# Find documents with status A and price greater than 100.0
+find_dict = {
+    'status':'A',
+    'price':{'$gt':100.00}
+}
+
+# Display only the name of the game
+project_dict = {
+    '_id': 0,
+    'game': 1
+}
+
+# You can omit the filter and projection keywords
+result_info = game_collection.find(filter = find_dict, projection = project_dict)
+
+# Display the results
+for document in result_info:
+    print(document)
+```
+The result should look like this:
+```bash
+{'game': 'Resident Evil 4'}
+{'game': 'Dead Island 2'}
+```
+
+#### Using aggregation pipelines
+```python
+# Find the game(s) that have the lowest total qty at all the stores. 
+# The result is given below for your reference (the field name and 
+# order must be the same).
+
+my_pipeline = [
+    {'$project':{
+        'game':1,
+        'total_qty':{'$sum':'$stock.qty'}
+    }},
+    {'$group':{
+        '_id':'$total_qty',
+        'games':{
+            '$push':'$$ROOT.game'
+        }
+    }},
+    {'$sort':{
+        '_id':1
+    }},
+    {'$limit':1}
+]
+
+# You can omit the pipeline keyword
+result_info = game_collection.aggregate(pipeline = my_pipeline)
+
+# Display results
+for document in result_info:
+    print(document)
+```
+The result should look like this:
+```bash
+{'_id': 45, 'games': ['Resident Evil 4', 'Dead Island 2']}
+```
+
 ---
 
 ### Follow me on:
