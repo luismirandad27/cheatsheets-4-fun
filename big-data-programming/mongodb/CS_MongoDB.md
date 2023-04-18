@@ -474,16 +474,34 @@ Note:
 - You may use project when you want to make any aggregation for each document.
 - But you may use unwind and group when you want to based on any field across all the documents
 
----
-## Comming up next...
+## Bonus Track: `$addToSet`
 
-### Lookup
+Based on the MongoDB 5.0's documentation this operation helps to add a value to an array unless the value is already present.
 
-### MapReduce and its deprecation
+For example:
+Give the list of all stock qty for each store for every game
 
-### PyMongo
+```bash
+db.gamesInventory.aggregate([
+    {$unwind: "$stock"},
+    {$group:{
+        _id:"$stock.store",
+        stocks:{
+            $addToSet:"$stock.qty"
+        }
+    }}
+])
+```
+The result will look like this:
+```bash
+[
+  { _id: 'B', stocks: [ 15, 5, 10 ] },
+  { _id: 'C', stocks: [ 35, 45, 75 ] },
+  { _id: 'A', stocks: [ 5, 60, 40 ] }
+]
+```
 
-## Stay tuned!
+## More operations available in the Mongo DB's [documentation](https://www.mongodb.com/docs/manual/reference/operator/):
 
 ---
 
