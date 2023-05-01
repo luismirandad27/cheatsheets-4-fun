@@ -284,3 +284,369 @@ VACUUM delta.`/data/events/` RETAIN 100 HOURS  -- vacuum files not required by v
 
 VACUUM eventsTable DRY RUN    -- do dry run to get the list of files to be deleted
 ```
+
+### <ins>Storage and Management (tables, databases, views, Data Explorer)<ins>
+
+**Metastore**
+Place where you can store all the metadata that define your data objects in the lakehouse.
+
+Types:
+a. *Unity Catalog Metastore*: centralized access control, **auditing**, **lineage** and **data discovery**. 
+- Can be across multiple workspaces.
+- Users cannot have access to the UC metastore initially (grants must added by the admin)
+
+b. *Built-in Hive Metastore (legacy)*
+- This only support **1 single catalog**
+- Less centralized
+- A cluster allows all users to access all data managed by the legacy metastore (unless of the *table access control* enabling).
+- **Recommend: upgrade to UC**
+
+c. *External Hive Metastore*
+
+**Data Objects in Databricks Lakehouse**
+
+![](assets/HirearchyTable.jpeg)
+
+a. **Catalog**: group of databases
+b. **Database** (or Schema): group of objects (tables + views + functions)
+- `LOCATION` attribute define the default location for data of all tables registered.
+
+c. **Table**: collection of rows and columns
+- All tables created by default are **Delta Tables**
+
+<ins>Table Types<ins>
+c.1. Managed Table (Supports DELTA)
+- **Third level of organization**
+- Data stored in a new directory *in the mestastore*.
+- *No need to use `LOCATION` clause*
+
+```sql
+--Examples
+CREATE TABLE table_name AS SELECT * FROM another_table;
+CREATE TABLE table_name (field_name1 INT, field_name2 STRING);
+```
+
+c.2. External Table (unmanaged tables)
+- **Third level of organization**
+- *Outside the metastore*
+- `DROP TABLE` does not delete the data!
+- Cloning does not move the data.
+- `delta, csv, json, avro, parquet, orc, text`
+
+```sql
+-- Example 1:
+CREATE TABLE table_name
+USING DELTA
+LOCATION '/path/to/existing/data'
+
+-- Example 2:
+CREATE TABLE table_name
+(field_name1 INT, field_name2 STRING)
+LOCATION '/path/to/empty/directory'
+
+--Create table with external location
+CREATE TABLE table1
+    LOCATION 's3://<bucket>/<table_dir>';
+
+--Create table with external location + storage credential
+CREATE TABLE table1
+    LOCATION 's3://<bucket>/<table_dir>'
+    WITH CREDENTIAL <credential-name>;
+```
+
+d. **View**: saved query against one or more tables
+- *Temporary View*: not registered to a schema or catalog.
+    - Notebooks/Jobs: notebook/script level of scope
+    - Databricks SQL: query level of scope
+    - **Global Temporary Views**: cluster level
+
+e. **Function**: logic the returns *scalar* value or *set of rows*.
+
+**Data Explorer**
+- Schema info: display schemas
+- Table Details and properties: sample data, table details, table history.
+    - Most frequent querys (30 days) -> must have `SELECT`, `USE SCHEMA`, `USE CATALOG` permissions.
+    - Create quick query
+    - Create quick dashboard
+- Admin: change/view owners
+- Grant/Revoke permissions
+- Query History
+- Manage Storage Credentials
+
+### <ins>Security (table ownership, PII data)<ins>
+
+**Ownership**
+
+`GRANT` and `REVOKE`:
+- Include `CREATE`,`MODIFY`, `SELECT`, `USAGE`, etc.
+- Permissions can be granted to users, groups or both.
+```sql
+GRANT ALL PRIVILEGES ON TABLE <table_name> TO <group_name>;
+```
+
+Show Owners:
+
+```sql
+DESCRIBE TABLE EXTENDED <catalog>.<schema>.<table_name>;
+DESCRIBE CATALOG EXTENDED <catalog>;
+```
+
+Transfer Ownership:
+```sql
+ALTER TABLE <table_name> OWNER TO <principal>;
+ALTER TABLE <catalog_name> OWNER TO <principal>;
+```
+
+Dynamic Views:
+```sql
+-- Column Level
+CREATE VIEW sales_redacted AS
+SELECT
+  user_id,
+  CASE WHEN
+    is_account_group_member('auditors') THEN email
+    ELSE 'REDACTED'
+  END AS email,
+  country,
+  product,
+  total
+FROM sales_raw
+```
+
+```sql
+ CREATE VIEW sales_redacted AS
+ SELECT
+   user_id,
+   country,
+   product,
+   total
+ FROM sales_raw
+ WHERE
+   CASE
+     WHEN is_account_group_member('managers') THEN TRUE
+     ELSE total <= 1000000
+   END;
+```
+
+Some functions for this examples are:
+- `current_user()`
+- `is_account_group_member()`: account-level group
+- `is_member()`: workspace level group
+
+**PII data**
+
+By the way:
+- GDPR stands for *General Data Protection Regulation*
+- CCPA stands for *California Consumer Privacy Act*
+
+ACID transactions allow us to locate and remove personally idenfiable information (PII).
+
+*Data Model for compliance*
+- **Pseudonymization** (Reversible tokenization of PII)
+
+*Point Deletes*
+- Data Skipping optimizations built in
+- Use Z-order on fields that we use on `DELETE` operations.
+
+## Topic 3: Use Structured Query Language (SQL) to complete tasks in the Lakehouse
+
+### <ins>Basic SQL<ins>
+
+**Data Types**
+- SQL Data type link: https://docs.databricks.com/sql/language-manual/sql-ref-datatype-rules.html
+- Check the precedence list
+- Null can be promoted to any other type
+- *Implicit downcasting*: casts a wider type to a narrower type (DOUBLE -> FLOAT)
+- *Implicit crosscasting*: from one type family to other.
+
+```sql
+-- Example
+SELECT a.date, b.product_type, sum(a.total) as total_sales
+FROM marketing.sales as a
+JOIN production.productions as b on a.product_id = b.product_id
+WHERE b.product_type IN ('PS5 GAMES','XBOX ONE GAMES')
+GROUP BY a.date, b.product_type
+HAVING sum(a.total) > 10000;
+```
+
+### <ins>Complex Data<ins>
+
+**Nested Data Objects**
+
+```sql
+-- Example 1
+SELECT
+    raw:title,
+    RAW:production.store_name,
+    raw:production.store_stock,
+FROM games_data
+```
+
+```sql
+-- Example 2
+SELECT
+    raw:title,
+    raw:['TITLE'], --this won't work (return null) case sensitive
+    raw:production['store_name'],
+    raw:production['store_stock']
+FROM games_data
+```
+
+Nested Object with arrays
+```sql
+SELECT
+    raw:top_clients[0],
+    raw:top_clients[0].client_id,
+    raw:top_clients[0].client_name,
+    raw:top_clients[*].client_name --array with only one field
+FROM games_data
+```
+
+Casting data
+```sql
+-- Example 1 (simple casting)
+SELECT
+    raw:production.store_products[0].price::double
+FROM games_data;
+
+-- Example 2 (complex casting)
+SELECT
+    from_json(raw:production, 'store_name string, store_stock int, store_products array<string>')
+FROM games_data;
+```
+
+**Grouping Sets**
+```sql
+SELECT city, car_model, sum(quantity) AS sum
+FROM dealer
+GROUP BY GROUPING SETS ((city, car_model), (city), (car_model), ())
+ORDER BY city;
+```
+
+**ROLLUP**
+```sql
+-- like GROUP BY GROUPING SETS ((city, car_model), (city), ())
+SELECT city, car_model, sum(quantity) AS sum
+FROM dealer
+GROUP BY city, car_model WITH ROLLUP
+ORDER BY city, car_model;
+```
+
+**Cube**
+```sql
+-- like GROUP BY GROUPING SETS ((city, car_model), (city), (car_model), ())
+SELECT city, car_model, sum(quantity) AS sum
+FROM dealer
+GROUP BY city, car_model WITH CUBE
+ORDER BY city, car_model;
+```
+
+**get first and last row**
+```sql
+SELECT FIRST(age IGNORE NULLS), LAST(id), SUM(id) FROM person;
+```
+
+Link: https://docs.databricks.com/sql/language-manual/sql-ref-syntax-qry-select-groupby.html
+
+**Windows**
+```sql
+SELECT name, dept, RANK() OVER (PARTITION BY dept ORDER BY salary) AS rank
+FROM employees;
+```
+
+Review window functions: `RANK()`, `DENSE_RANK()`, `PERCENT_RANK()`,`ROW_NUMBER()`.
+Review analytical window functions: `CUME_DIST()`, `LAG()`, `LEAD()`
+
+### <ins>SQL in the Lakehouse<ins>
+
+**ANSI SQL**
+
+Set the spark cluster with this parameter
+`spark.sql.ansi.enabled=true`
+
+Some operators:
+- `CAST(string_col AS <ANSI SQL data type>)`
+- `element_at()`
+- `to_date()`
+- `to_timestamp()`
+- `to_unix_timestamp()`
+- `unix_timestamp()`
+- `try_cast()`
+- `try_divide()`
+
+`date_format()`
+```sql
+SELECT date_format(date '1970-01-01', 'M'); --1
+SELECT date_format(date '1970-12-01', 'L'); --12
+SELECT date_format(date '1970-01-01', 'd MMM'); --1 Jan
+```
+
+`from_unixtimestamp()`
+```sql
+SELECT from_unixtime(0, 'yyyy-MM-dd HH:mm:ss'); --1969-12-31 16:00:00
+```
+
+`to_unix_timestamp()`
+```sql
+SELECT to_unix_timestamp('2016-04-08', 'yyyy-MM-dd'); --1460098800
+```
+
+`unix_timestamp()`
+```sql
+SELECT unix_timestamp('2016-04-08', 'yyyy-MM-dd'); --1460041200
+```
+
+`timestamp()`
+```sql
+SELECT timestamp('2020-04-30 12:25:13.45'); --2020-04-30 12:25:13.45
+```
+
+More Built-in functions: https://docs.databricks.com/sql/language-manual/sql-ref-functions-builtin.html
+
+**Lambda Functions**
+```sql
+SELECT array_sort(array(5, 6, 1),
+                (left, right) -> CASE WHEN left < right THEN -1
+                                      WHEN left > right THEN 1 ELSE 0 END);
+```
+
+Keep in mind that for array handling are many methods: 
+`array_append`, `array_compact`, `array_distinct`, `array_except`, `array_intersect`, `array_remove`, `array_union`, `sort_array`
+
+**User Defined Functions (UDF)**
+
+```sql
+CREATE FUNCTION convert_f_to_c(unit STRING, temp DOUBLE)
+RETURNS DOUBLE
+RETURN CASE
+  WHEN unit = "F" THEN (temp - 32) * (5/9)
+  ELSE temp
+END;
+
+SELECT convert_f_to_c(unit, temp) AS c_temp
+FROM tv_temp;
+```
+
+**Query History and Query Profile**
+
+- *Query History* (in the sidebar): we can see the execution summary. We can cancel a query if it's running.
+- *Query Profile*: execution details. **Not available for the query cache**
+    - We can see a *tree view* or *graph view*
+    - Most common operations in a query execution plan:
+        - *Scan*: Data was read from a datasource and output as rows.
+        - *Join*
+        - *Union*: 
+        - *Shuffle*: Data was redistributed or repartitioned.
+        - *Hash / Sort*: Rows were grouped by a key and evaluated using an aggregate function such as SUM, COUNT, or MAX within each group.
+        - *Filter*:
+        - *(Reused) Exchange*: A Shuffle or Broadcast Exchange.
+        - *Collect Limit*: The number of rows returned was truncated by using a LIMIT statement.
+        - *Take Ordered And Project*: The top N rows of the query result were returned.
+- *Query Caching*:
+    - Local cache: comes from the cluster. If it is restarted or stopped the cache will be cleaned.
+    - Remote result cache: serverless-only cache system that persist the query results in a cloud storage (lifecycle 24 hours)
+    - Delta caching: local SSD caching.
+
+## Topic 4: Create production-grade data visualizations and dashboards
+
+### <ins>Visualization<ins>
