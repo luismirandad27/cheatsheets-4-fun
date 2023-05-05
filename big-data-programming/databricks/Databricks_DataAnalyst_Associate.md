@@ -9,15 +9,15 @@
 - Data Scientists
 - BI Developers: Love working on SQL
 - Report Consumers: Minimal technical barriers.
+- Data Engineers (Secondary actors)
 
 **SQL Analytics Workspace**:
 - Simplified Controls
 - SQL-Only
 - Query Builder & Dashboarding
 - Here we are expecting the data store in *Hive Tables*.
-- **Check Table of Cluster Size**
 
-**Compute: SQL Endpoint Configuration**
+**Compute: SQL Endpoint Configuration Detail**
 - Name
 - Cluster Size
 - Auto Stop: Default (120 minutes of inactivity)
@@ -26,28 +26,25 @@
 - Photon
 - Tags
 
-*Monitoring*
-- How busy my SQL Endpoint is.
+<img src="assets/DA-SQLEndpointConfig.png" width="40%" height="auto">
 
-**Query**
+**About Query (SQL Editor)**
 - Results can be used in a visualization.
 - 1 query can create multiple visualizations.
 - You can Format your Query (Ctrl+Shift+F).
 - **Refresh Query Schedule**
 
-*Query History*
-- Keeping track of who is working on the SQL endpoint and which queries they created.
-- Columns: Query | SQL Endpoint | Started At | Duration | User
-- You can see the Spark Execution (Spark UI)
+<img src="assets/DA-SQLEditor.png" width="40%" height="auto">
 
 **Dashboards**
 - Each visualization can be added into a Dashboard.
-- Each Dashboard can have multiple queries in it and you can schedule the dashboard.
+- Each Dashboard can have multiple queries in it and you can schedule the dashboard refresh.
 - If you want to connect your Data to an external BI tool (Power BI), you can get the Server Info from SQL Endpoint/Connection Details.
 
 **Alerts**
 - Related to a Query
 - Making validation (WHEN column is ... trigger alert)
+- Need to include the SQL Endpoint where the alert is going to be run.
 - Email Template and add Destinations
 
 ### <ins>Integrations (Partner Connect, data ingestion, other BI tools)<ins>
@@ -76,7 +73,10 @@ Recomendation: create token for service principals not for workspace users.
 3. Allow SQL warehouse to access external data.
 
 **Partners for Data Ingestion**: arcion, fivetran, hevo, rivery
+
 **Partners for BI Tools**: Hex, Power BI, preset, sigma, tableau, thoughSpot.
+
+*How to Connect PowerBI with Databricks*: https://learn.microsoft.com/en-us/azure/databricks/partners/bi/power-bi
 
 ### <ins>Lakehouse (medallion architecture, streaming data)<ins>
 
@@ -97,6 +97,16 @@ b. Silver (validated) Layer (DELETE from sources)
 c. Gold (enriched) Layer (MERGE/OVERWRITE)
 - Cleaned data, ready for consumption
 - Read with Spark or Presto
+
+*Query Example*
+```sql
+SELECT  country, 
+        sum(amount) as total_amount, 
+        count(order_id) as num_of_orders
+FROM cleaned_transactions
+GROUP BY
+  country;
+```
 
 **Streaming Data**
 
@@ -150,14 +160,14 @@ LIMIT 10;
 ```
 
 *Structured Streaming*
-Performs the computation incremenetally and continuosly updates
+Performs the computation incremenetally and continuously updates
 
 ## Topic 2: Manage data with Databricks tools and best practices
 
 ### <ins>Delta Lake (Basics, Benefits)<ins>
 
 **Basics**
-- Open Source SW that extends *Parquet* files with a file-based transaction log for **ACID Transactions**
+- Open Source SW that extends *Parquet* files with a file-based transaction log for **ACID Transactions**.
 
 *Ways to ingesting data to Delta Lake*
 - Delta Live Tables
@@ -170,26 +180,6 @@ Performs the computation incremenetally and continuosly updates
 *Updating Delta Lake Tables*
 - MERGE support
 - Overwriting support
-
-Example 1 (Replace Where clause):
-```python
-spark.conf.set("spark.databricks.delta.replaceWhere.constraintCheck.enabled", True)
-
-(replace_data.write
-  .mode("overwrite")
-  .option("replaceWhere", "start_date >= '2017-01-01' AND end_date <= '2017-01-31'")
-  .save("/tmp/delta/events")
-)
-```
-
-Example 2 (Dynamic Partition):
-```sql
-SET spark.sql.sources.partitionOverwriteMode=dynamic;
-INSERT OVERWRITE TABLE default.people10m SELECT * FROM morePeople;
-```
-
-- You can manually/automatically update your table schema without rewriting data
-- **Column mapping** helps to rename/delete columns without rewriting data
 
 *Incremental and streaming workloads on Delta Lake*
 - Table streaming reads and writes
@@ -224,10 +214,9 @@ CREATE TABLE people10m (
   salary INT
 ) USING DELTA;
 
-ALTER TABLE people10m ALTER COLUMN middleName DROP NOT NULL;
 ALTER TABLE people10m ALTER COLUMN ssn SET NOT NULL;
+-- CHECK CONSTRAINT
 ALTER TABLE people10m ADD CONSTRAINT dateWithinRange CHECK (birthDate > '1900-01-01');
-ALTER TABLE people10m DROP CONSTRAINT dateWithinRange;
 
 --Review constraints
 DESCRIBE DETAIL people10m;
@@ -308,7 +297,8 @@ c. *External Hive Metastore*
 
 ![](assets/HirearchyTable.jpeg)
 
-a. **Catalog**: group of databases<br/>
+a. **Catalog**: group of databases
+
 b. **Database** (or Schema): group of objects (tables + views + functions)
 - `LOCATION` attribute define the default location for data of all tables registered.
 
@@ -360,7 +350,7 @@ d. **View**: saved query against one or more tables
 - *Temporary View*: not registered to a schema or catalog.
     - Notebooks/Jobs: notebook/script level of scope
     - Databricks SQL: query level of scope
-    - **Global Temporary Views**: cluster level
+- **Global Temporary Views**: cluster level
 
 e. **Function**: logic the returns *scalar* value or *set of rows*.
 
@@ -374,6 +364,8 @@ e. **Function**: logic the returns *scalar* value or *set of rows*.
 - Grant/Revoke permissions
 - Query History
 - Manage Storage Credentials
+
+<img src="assets/DA-SQLDataExplorer.png" width="40%" height="auto">
 
 ### <ins>Security (table ownership, PII data)<ins>
 
@@ -471,9 +463,12 @@ GROUP BY a.date, b.product_type
 HAVING sum(a.total) > 10000;
 ```
 
+Take a look on the `JOIN` clause: https://docs.databricks.com/sql/language-manual/sql-ref-syntax-qry-select-join.html
+*try to review `SEMI JOIN` and `ANTI JOIN`*
+
 ### <ins>Complex Data<ins>
 
-**Nested Data Objects**
+**Nested Data Objects (JSON objects)**
 
 ```sql
 -- Example 1
@@ -494,30 +489,13 @@ SELECT
 FROM games_data
 ```
 
-Nested Object with arrays
-```sql
-SELECT
-    raw:top_clients[0],
-    raw:top_clients[0].client_id,
-    raw:top_clients[0].client_name,
-    raw:top_clients[*].client_name --array with only one field
-FROM games_data
-```
+*More about Nested Data Objects*: https://docs.gcp.databricks.com/sql/language-manual/sql-ref-json-path-expression.html 
 
-Casting data
-```sql
--- Example 1 (simple casting)
-SELECT
-    raw:production.store_products[0].price::double
-FROM games_data;
+### <ins>SQL in the Lakehouse<ins>
 
--- Example 2 (complex casting)
-SELECT
-    from_json(raw:production, 'store_name string, store_stock int, store_products array<string>')
-FROM games_data;
-```
+**Multidimensional Cube (`GROUP BY`)**
 
-**Grouping Sets**
+*Grouping Sets*
 ```sql
 SELECT city, car_model, sum(quantity) AS sum
 FROM dealer
@@ -525,7 +503,7 @@ GROUP BY GROUPING SETS ((city, car_model), (city), (car_model), ())
 ORDER BY city;
 ```
 
-**ROLLUP**
+*ROLLUP*
 ```sql
 -- like GROUP BY GROUPING SETS ((city, car_model), (city), ())
 SELECT city, car_model, sum(quantity) AS sum
@@ -534,7 +512,7 @@ GROUP BY city, car_model WITH ROLLUP
 ORDER BY city, car_model;
 ```
 
-**Cube**
+*Cube*
 ```sql
 -- like GROUP BY GROUPING SETS ((city, car_model), (city), (car_model), ())
 SELECT city, car_model, sum(quantity) AS sum
@@ -543,26 +521,14 @@ GROUP BY city, car_model WITH CUBE
 ORDER BY city, car_model;
 ```
 
-**get first and last row**
+*get first and last row*
 ```sql
 SELECT FIRST(age IGNORE NULLS), LAST(id), SUM(id) FROM person;
 ```
 
-Link: https://docs.databricks.com/sql/language-manual/sql-ref-syntax-qry-select-groupby.html
+*More about `GROUP BY` clause*: https://docs.databricks.com/sql/language-manual/sql-ref-syntax-qry-select-groupby.html
 
-**Windows**
-```sql
-SELECT name, dept, RANK() OVER (PARTITION BY dept ORDER BY salary) AS rank
-FROM employees;
-```
-
-Review window functions: `RANK()`, `DENSE_RANK()`, `PERCENT_RANK()`,`ROW_NUMBER()`.
-
-Review analytical window functions: `CUME_DIST()`, `LAG()`, `LEAD()`
-
-### <ins>SQL in the Lakehouse<ins>
-
-**ANSI SQL**
+**ANSI SQL (Default Dialect)**
 
 Set the spark cluster with this parameter
 `spark.sql.ansi.enabled=true`
@@ -604,7 +570,25 @@ SELECT unix_timestamp('2016-04-08', 'yyyy-MM-dd'); --1460041200
 SELECT timestamp('2020-04-30 12:25:13.45'); --2020-04-30 12:25:13.45
 ```
 
-More Built-in functions: https://docs.databricks.com/sql/language-manual/sql-ref-functions-builtin.html
+**Built-in Functions**
+
+*Window Function*
+Example: `RANK()`
+```sql
+SELECT name, dept, RANK() OVER (PARTITION BY dept ORDER BY salary) AS rank
+FROM employees;
+```
+- Review window functions: `RANK()`, `DENSE_RANK()`, `PERCENT_RANK()`,`ROW_NUMBER()`.
+- Review analytical window functions: `CUME_DIST()`, `LAG()`, `LEAD()`
+
+*Array Functions*
+Example: `transform()`
+```sql
+SELECT transform(array(1, 2, 3), x -> x + 1); --[2,3,4]
+SELECT transform(array(1, 2, 3), (x, i) -> x + i); --[1,3,5]
+```
+
+*More about Built-in Function*: https://docs.gcp.databricks.com/sql/language-manual/sql-ref-functions-builtin.html
 
 **Lambda Functions**
 ```sql
@@ -615,6 +599,8 @@ SELECT array_sort(array(5, 6, 1),
 
 Keep in mind that for array handling are many methods: 
 `array_append`, `array_compact`, `array_distinct`, `array_except`, `array_intersect`, `array_remove`, `array_union`, `sort_array`
+
+*More About Lambda Functions*: https://docs.gcp.databricks.com/sql/language-manual/sql-ref-lambda-functions.html 
 
 **User Defined Functions (UDF)**
 
@@ -630,9 +616,18 @@ SELECT convert_f_to_c(unit, temp) AS c_temp
 FROM tv_temp;
 ```
 
+*More About UDF*: https://docs.gcp.databricks.com/udf/index.html
+
 **Query History and Query Profile**
 
 - *Query History* (in the sidebar): we can see the execution summary. We can cancel a query if it's running.
+  - Keeping track of who is working on the SQL endpoint and which queries they created.
+  - Columns: Query | SQL Endpoint | Started At | Duration | User
+  - You can see the Spark Execution (Spark UI)
+
+<img src="assets/DA-SQLQueryHistory.png" width="40%" height="auto">
+Link: https://docs.gcp.databricks.com/sql/admin/query-history.html
+
 - *Query Profile*: execution details. **Not available for the query cache**
     - We can see a *tree view* or *graph view*
     - Most common operations in a query execution plan:
@@ -645,11 +640,88 @@ FROM tv_temp;
         - *(Reused) Exchange*: A Shuffle or Broadcast Exchange.
         - *Collect Limit*: The number of rows returned was truncated by using a LIMIT statement.
         - *Take Ordered And Project*: The top N rows of the query result were returned.
+
+<img src="assets/DA-SQLQueryProfile_0.png" width="40%" height="auto"><br/>
+<img src="assets/DA-SQLQueryProfile.png" width="80%" height="auto">
+
+Link: https://docs.gcp.databricks.com/sql/admin/query-profile.html
+
 - *Query Caching*:
     - Local cache: comes from the cluster. If it is restarted or stopped the cache will be cleaned.
     - Remote result cache: serverless-only cache system that persist the query results in a cloud storage (lifecycle 24 hours)
     - Delta caching: local SSD caching.
 
+Link: https://docs.gcp.databricks.com/sql/admin/query-caching.html
+
 ## Topic 4: Create production-grade data visualizations and dashboards
 
-# Coming Soon!
+### <ins>Visualization<ins>
+
+<img src="assets/DA-SQLEditorResults.png" width="40%" height="auto">
+
+Select Visualization and it will display the *Visualization Editor*.
+
+<img src="assets/DA-VisualizationEditor.png" width="60%" height="auto">
+
+*More about visualization types*: https://docs.databricks.com/visualizations/visualization-types.html
+
+We can customize Colors and Labels
+<img src="assets/DA-VisualizationEditor_1.png" width="60%" height="auto">
+
+Finally we can add a visualization into a **dashboard**
+
+<img src="assets/DA-AddDashboardOption.png" width="60%" height="auto"> <br/>
+<img src="assets/DA-AddDashboard.png" width="60%" height="auto">
+
+### <ins>Dashboards<ins>
+
+<img src="assets/DA-Dashboard.png" width="60%" height="auto"> <br/>
+<img src="assets/DA-DashboardTextbox.png" width="60%" height="auto">
+
+**Parameter Types**
+- Widget Parameters: apply to a visualization (`WHERE`)
+- Dashboard Parameter: apply to all visualizations on a dashboard
+- Static Value
+
+*More about Dashboards*: https://docs.databricks.com/sql/user/dashboards/index.html#parameter-properties
+
+**Refresh Dashboard**
+<img src="assets/DA-DashboardSchedule.png" width="60%" height="auto">
+
+**Dashboard Snapshots**
+We can send dashboard snapshots to the subscribers via email. However, take in consideration the following:
+- If the Dashboard snapshot has more the 6MB file limit, a link to the dashboard would be send.
+
+### <ins>Alerts<ins>
+<img src="assets/DA-DashboardSchedule.png" width="40%" height="auto">
+
+*Status Types*:
+- `UNKNOWN`: no data to evaluate
+- `TRIGGERED`
+- `OK`: the query execution results don't meet the condition
+
+## Topic 5: Develop analytics applications to solve common data analytics problems, including:
+
+### <ins>Descriptive Statistics (discrete statistics, summary statistics)<ins>
+
+Review the basics in Descriptive Statitics:
+- Discrete vs Continuous Variables
+- Measures of Central Tendency:
+  - Median
+  - Mean
+  - Mode
+- Measures of Variation:
+  - Variance
+  - Standard Deviation
+
+### <ins>Common Applications (data enhancement, data blending, last-mile ETL)<ins>
+
+- *Last-mile dashboarding*: refers to the creation of dashboards that are presented to end-users in the final stages of a project.
+- *Last-mile ETL*: refers to the process of preparing and transforming data for use in the final stages of a project.
+- *Ad-hoc improvements*: refers to making changes or updates to an existing process or system to meet specific requirements or to address an issue.
+- *Data testing*: refers to the process of verifying that data is accurate and consistent, typically through the use of testing frameworks or tools.
+- *Data enhancements*: the process of augmenting gold-layer tables with additional dataset provided by a stakeholder in data analysis.
+- *Data blending*: involves combining data from multiple sources.
+
+###### Reference
+> Databricks Documentation: https://learn.microsoft.com/en-us/azure/databricks/
