@@ -291,6 +291,7 @@ VACUUM eventsTable DRY RUN    -- do dry run to get the list of files to be delet
 Place where you can store all the metadata that define your data objects in the lakehouse.
 
 Types:
+
 a. *Unity Catalog Metastore*: centralized access control, **auditing**, **lineage** and **data discovery**. 
 - Can be across multiple workspaces.
 - Users cannot have access to the UC metastore initially (grants must added by the admin)
@@ -307,7 +308,7 @@ c. *External Hive Metastore*
 
 ![](assets/HirearchyTable.jpeg)
 
-a. **Catalog**: group of databases
+a. **Catalog**: group of databases<br/>
 b. **Database** (or Schema): group of objects (tables + views + functions)
 - `LOCATION` attribute define the default location for data of all tables registered.
 
@@ -315,6 +316,7 @@ c. **Table**: collection of rows and columns
 - All tables created by default are **Delta Tables**
 
 <ins>Table Types<ins>
+
 c.1. Managed Table (Supports DELTA)
 - **Third level of organization**
 - Data stored in a new directory *in the mestastore*.
@@ -555,6 +557,7 @@ FROM employees;
 ```
 
 Review window functions: `RANK()`, `DENSE_RANK()`, `PERCENT_RANK()`,`ROW_NUMBER()`.
+
 Review analytical window functions: `CUME_DIST()`, `LAG()`, `LEAD()`
 
 ### <ins>SQL in the Lakehouse<ins>
@@ -649,4 +652,4 @@ FROM tv_temp;
 
 ## Topic 4: Create production-grade data visualizations and dashboards
 
-### <ins>Visualization<ins>
+# Coming Soon!
