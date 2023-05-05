@@ -666,6 +666,7 @@ Select Visualization and it will display the *Visualization Editor*.
 *More about visualization types*: https://docs.databricks.com/visualizations/visualization-types.html
 
 We can customize Colors and Labels
+
 <img src="assets/DA-VisualizationEditor_1.png" width="60%" height="auto">
 
 Finally we can add a visualization into a **dashboard**
@@ -686,6 +687,7 @@ Finally we can add a visualization into a **dashboard**
 *More about Dashboards*: https://docs.databricks.com/sql/user/dashboards/index.html#parameter-properties
 
 **Refresh Dashboard**
+
 <img src="assets/DA-DashboardSchedule.png" width="60%" height="auto">
 
 **Dashboard Snapshots**
