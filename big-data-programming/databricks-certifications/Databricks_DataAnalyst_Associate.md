@@ -1,4 +1,4 @@
-#  Databricks Data Analyst Associate
+#  Databricks Data Analyst Associate Cheatsheet
 
 ## Topic 1: Describe Databricks SQL and its capabilities
 

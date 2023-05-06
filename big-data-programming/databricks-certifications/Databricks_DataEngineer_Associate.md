@@ -1,4 +1,4 @@
-#  Databricks Data Engineer Associate
+#  Databricks Data Engineer Associate Cheatsheet
 
 ## Topic 1: Understand how to use and the benefits of using the Databricks Lakehouse Platform and its tools
 ### 1 What is the *Databricks Lakehouse*?
