@@ -1,4 +1,4 @@
-# Databricks Associate Developer for Apache Spark (Pyhon) Cheatsheet
+# Databricks Associate Developer for Apache Spark (Python) Cheatsheet
 
 ## Creating Spark Data Frames with Pyspark
 
