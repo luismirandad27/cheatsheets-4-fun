@@ -338,6 +338,59 @@ c. Gold (enriched) Layer (MERGE/OVERWRITE)
 6. Metadata Management
 7. Data Compaction and Optimization (Z-order and data skipping).
 
+*Aditional Things*
+
+<ins>Vacuum<ins>
+
+**Link**: https://docs.databricks.com/sql/language-manual/delta-vacuum.html
+
+Removes all files from the table directory that are not managed by Delta, as well as data files that are no longer in the latest state of the transaction log and are older thatn a retention treshold.
+
+- Skip directories with an *underscore* (_delta_log) except for partitions.
+- Default treshold: 7 days.
+
+```sql
+VACUUM table_name [RETAIN num HOURS] [DRY RUN]
+```
+
+`DRY RUN` return a list of top 1000 files to be deleted.
+
+<ins>Delta Clone<ins>
+
+**Link**: https://docs.databricks.com/delta/clone.html
+
+- *Deep Clone*: copy the source table data to the clone target **in addition to the metadata**. Includes: schema, partitioning, invariants, nullability.
+  - After re-executing a deep clone, we only copy those files that were written during the most recent transaction.
+  - We can use deep clone to set different table properties for the targe table.
+
+```sql
+CREATE [OR REPLACE] TABLE [IF NOT EXISTS] delta.`/path/target` CLONE delta.`/path/source`; --Deep Clone
+
+CREATE OR REPLACE TABLE target_table
+DEEP CLONE source_table
+LOCATION '/path/'; --Deep Clone
+
+ALTER TABLE target_table
+SET TBLPROPERTIES
+(
+  delta.logRetentionDuration = '3650 days',
+  delta.deletedFileRetentionDuration = '3650 days'
+)
+```
+
+- *Shallow Clone*: does not copy the data files to the clone target (only metadata).
+  - Only will contain *read-only permissions*
+
+```sql
+CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source`; --Shallow Clone
+
+CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source` VERSION AS OF 3; --Shallow Clone
+
+CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source` TIMESTAMP AS OF "2023-05-14";--Shallow Clone
+```
+
+- Cloning is not the same as `CTAS`.
+
 <h3 style="font-weight:bold;"> d. Databricks CLI </h3>
 
 <h4 style="font-style:italic;"> Deploying notebook-based workflows </h4>
@@ -644,3 +697,622 @@ POST /api/2.1/jobs/runs/submit
 ```
 
 *and so on..*
+
+## **Topic 2: Build data processing pipelines using the Spark and Delta Lake APIs**
+
+<h3 style="font-weight:bold;"> a. Building batch-processed ETL pipelines </h3>
+
+**PENDING**
+
+<h3 style="font-weight:bold;"> b. Building incrementally processed ETL pipelines </h3>
+
+<h4 style="font-weight:bold;"> Simple Incremental ETL </h4>
+
+```python
+from pyspark.sql import functions as F
+
+def update_silver():
+    query = (spark.readStream
+                  .table("bronze")
+                  .withColumn("processed_time", F.current_timestamp())
+                  .writeStream.option("checkpointLocation", f"{DA.paths.checkpoints}/silver")
+                  .trigger(availableNow=True)
+                  .table("silver"))
+    
+    query.awaitTermination()
+
+update_silver()
+```
+
+- `.trigger(availableNow=True)` will run this process in multiple batches until no data is available.
+- `query.awaitTermination()` to prevent the execution of the next batch.
+
+<h4 style="font-weight:bold;"> Writing to Multiple Tables </h4>
+
+By using `foreachBatch`, we can execute custom data writing logic on each microbatch of streaming data. Here we are writing data into 2 tables on every microbatch.
+
+```python
+def write_twice(microBatchDF, batchId):
+    appId = "write_twice"
+    
+    microBatchDF.select("id", "name", F.current_timestamp().alias("processed_time")).write.option("txnVersion", batchId).option("txnAppId", appId).mode("append").saveAsTable("silver_name")
+    
+    microBatchDF.select("id", "value", F.current_timestamp().alias("processed_time")).write.option("txnVersion", batchId).option("txnAppId", appId).mode("append").saveAsTable("silver_value")
+
+
+def split_stream():
+    query = (spark.readStream.table("bronze")
+                 .writeStream
+                 .foreachBatch(write_twice)
+                 .option("checkpointLocation", f"{DA.paths.checkpoints}/split_stream")
+                 .trigger(availableNow=True)
+                 .start())
+    
+    query.awaitTermination()
+```
+
+<h4 style="font-weight:bold;"> Incremental Aggregations </h4>
+
+```python
+def update_key_value():
+    query = (spark.readStream
+                  .table("silver")
+                  .groupBy("id")
+                  .agg(F.sum("value").alias("total_value"), 
+                       F.mean("value").alias("avg_value"),
+                       F.count("value").alias("record_count"))
+                  .writeStream
+                  .option("checkpointLocation", f"{DA.paths.checkpoints}/key_value")
+                  .outputMode("complete")
+                  .trigger(availableNow=True)
+                  .table("key_value"))
+    
+    query.awaitTermination()
+```
+
+Because of the `groupBy`, a shuffle transformation will be performed, it's a good tip to set the number of shuffle partitions to the maximum number of cores to increase the performance.
+
+```python
+spark.conf.set("spark.sql.shuffle.partitions",...)
+```
+
+<h4 style="font-weight:bold;"> Multiplex Bronze (Autoloader) </h4>
+
+In a Multiplex Bronze Table, data is ingested into a single Bronze table in its raw form. This table acts as a landing zone for all incoming data, which can be ingested from multiple sources such as IoT devices, logs, or databases (divided by a column called `topic`).
+
+![](assets/DE-Mulitplex.png)
+
+Using **autoloader** from the source to the bronze table:
+
+```python
+def process_bronze():
+    query = (spark.readStream
+                  .format("cloudFiles")
+                  .option("cloudFiles.format", "json")
+                  .option("cloudFiles.schemaLocation", f"{DA.paths.checkpoints}/bronze_schema")
+                  .load(DA.paths.source_daily)
+                  .join(F.broadcast(date_lookup_df), F.to_date((F.col("timestamp")/1000).cast("timestamp")) == F.col("date"), "left")
+                  .writeStream
+                  .option("checkpointLocation", f"{DA.paths.checkpoints}/bronze")
+                  .partitionBy("topic", "week_part")
+                  .trigger(availableNow=True)
+                  .table("bronze"))
+    
+    query.awaitTermination()
+
+process_bronze()
+```
+
+In this query we are using the following:
+- **AutoLoader**: by using `.format("clouderFiles")` and `.option("cloudFiles.format","json")`
+- **Broadcast Join**: `.join(F.broadcast(column, on= , how= )`
+- **Partitioning**: `.partitionBy("topic","week_part")`
+
+<h4 style="font-weight:bold;"> Streaming from Multiplex Bronze  </h4>
+
+```python
+from pyspark.sql import functions as F
+
+json_schema = "device_id LONG, time TIMESTAMP, heartrate DOUBLE"
+
+(spark
+   .readStream.table("bronze")
+   .filter("topic = 'bpm'")
+   .select(F.from_json(F.col("value").cast("string"), json_schema).alias("v"))
+   .select("v.*")
+   .writeStream
+       .option("checkpointLocation", f"{DA.paths.checkpoints}/heart_rate")
+       .option("path", f"{DA.paths.user_db}/heart_rate_silver.delta")
+       .trigger(availableNow=True)
+       .table("heart_rate_silver"))
+
+query.awaitTermination()
+```
+
+- Because the Multiple Bronze table contains the raw data in the `value` column, `from_json()` method helps us to convert into multiple columns all the fields.
+
+<h3 style="font-weight:bold;"> c. Optimizing Workloads </h3>
+
+<ins>Schema Considerations<ins>
+
+- Precision
+- Datetime Filtering
+- Case Sensitivity
+- **Un-Nest** Important Fields for Filtering 
+- Place Important Fields Early in the Schema
+
+<ins>File Skipping with Delta Lake File Statistics<ins>
+
+- Capturing first 32 columns: Total Number, minimun, maximum, null count.
+  - Nested columns will count inside the 32 columns.
+
+<ins>Reviewing Statistics in the Transaction Log<ins>
+
+Getting the list of files in the `_delta_log` folder:
+
+```python
+files = dbutils.fs.ls("path/table/_delta_log")
+display(files)
+```
+
+Retrieve the data from a json log:
+
+```python
+display(spark.read.json("path/table/_delta_log/000000000000000000.json"))
+```
+
+- `Z-ordering` need to have statistics collected.
+- The checkpoints are applied every 10 commits.
+
+<ins>Partitioning Delta Lake Tables<ins>
+
+- *Low cardinality fields* should be used for partitioning.
+- Partitions should be at least **1 GB** in size.
+- Datatime fields can be used for partitioning
+
+```sql
+%sql
+CREATE OR REPLACE TABLE date_part_table (
+  key STRING,
+  value BINARY,
+  topic STRING,
+  partition LONG,
+  offset LONG,
+  timestamp LONG,
+  p_date DATE GENERATED ALWAYS AS (CAST(CAST(timestamp/1000 AS timestamp) AS DATE))
+)
+PARTITIONED BY (p_date)
+LOCATION '${da.paths.working_dir}/date_part_table'
+```
+
+<ins>Computing Stats<ins>
+
+```sql
+%sql
+ANALYZE TABLE table
+COMPUTE STATISTICS FOR COLUMNS column;
+```
+
+<ins>File Compaction (OPTIMIZE)<ins>
+
+- Between 256MB and 1GB.
+
+**Z-Ordering**
+- Collocate related information in the same set of files.
+- Multiple columns make the algorithm to lose some efficiency.
+- High cardinality columns are a good choice.
+
+```sql
+%sql
+OPTIMIZE table
+ZORDER BY column;
+```
+
+**Bloom Filter Indexes**
+- Good for fields include hashed values, aplhanumeric codes or free-form text fields.
+. 
+
+```sql
+%sql
+CREATE BLOOMFILTER INDEX
+ON TABLE table
+FOR COLUMNS(column_key OPTIONS (fpp=0.1, numItems = 200))
+```
+*This is not retroactive, this only applied for the new data written*
+
+**Auto Optimize**
+- During writes to a table
+- Optimized writes (128 MB)
+
+```python
+TBLPROPERTIES(delta.autoOptimize.optimizeWrite=true,
+delta.autoOptimize.autoCompact=true)
+```
+
+<h3 style="font-weight:bold;"> d. Deduplicating data </h3>
+
+**Streaming Deduplication**:
+As each micro-batch is processed, we must ensure that:
+- No duplicate records exist in the micro-batch.
+- Records to be inserted *are not in the target table*
+
+*Watermark*: Spark can determine which data is still relevant for a given window and discard the rest. Any data with an event timestamp earlier than the watermark minus the duration will be considered old and will be discarded.
+
+Example:
+
+```python
+# Create dedup dataFrame:
+
+json_schema = "device_id LONG, time TIMESTAMP, heartrate DOUBLE"
+
+deduped_df = (spark.readStream
+                   .table("bronze")
+                   .filter("topic = 'bpm'")
+                   .select(F.from_json(F.col("value").cast("string"), json_schema).alias("v"))
+                   .select("v.*")
+                   .withWatermark("time", "30 seconds")
+                   .dropDuplicates(["device_id", "time"]))
+
+# Creating MERGE query (to ensure inserting only new data)
+sql_query = """
+  MERGE INTO heart_rate_silver a
+  USING stream_updates b
+  ON a.device_id=b.device_id AND a.time=b.time
+  WHEN NOT MATCHED THEN INSERT *
+"""
+
+# Generate method for every micro-batch
+def upsert_to_delta(microBatchDF, batch):
+  microBatchDF.createOrReplaceTempView("stream_updates")
+  microBatchDF._jdf.sparkSession().sql(sql_query)
+
+# Writing query
+write_query = (deduped_df.writeStream
+                      .foreachBatch(upsert_to_delta)
+                      .outputMode("update")
+                      .option("checkpointLocation","/path/")
+                      .trigger(availableNow=True)
+                      .start()
+
+)
+
+write_query.awaitTermination()
+```
+
+<h3 style="font-weight:bold;"> e. Change Data Capture </h3>
+
+**Link**: https://medium.com/dev-genius/real-time-data-integration-made-easy-with-change-data-capture-cdc-dd536f2d0f43
+
+## **Topic 3: Model data management solutions**
+
+<h3 style="font-weight:bold;"> a. Lakehouse </h3>
+
+<h4 style="font-weight:bold;"> a.1 Databases, Tables, Views </h4>
+
+**Metastore**
+Place where you can store all the metadata that define your data objects in the lakehouse.
+
+Types:
+
+a. *Unity Catalog Metastore*: centralized access control, **auditing**, **lineage** and **data discovery**. 
+- Can be across multiple workspaces.
+- Users cannot have access to the UC metastore initially (grants must added by the admin)
+
+b. *Built-in Hive Metastore (legacy)*
+- This only support **1 single catalog**
+- Less centralized
+- A cluster allows all users to access all data managed by the legacy metastore (unless of the *table access control* enabling).
+- **Recommend: upgrade to UC**
+
+c. *External Hive Metastore*
+
+**Data Objects in Databricks Lakehouse**
+
+![](assets/HirearchyTable.jpeg)
+
+a. **Catalog**: group of databases
+
+b. **Database** (or Schema): group of objects (tables + views + functions)
+- `LOCATION` attribute define the default location for data of all tables registered.
+
+c. **Table**: collection of rows and columns
+- All tables created by default are **Delta Tables**
+
+<ins>Table Types<ins>
+
+c.1. Managed Table (Supports DELTA)
+- **Third level of organization**
+- Data stored in a new directory *in the mestastore*.
+- *No need to use `LOCATION` clause*
+
+```sql
+--Examples
+CREATE TABLE table_name AS SELECT * FROM another_table;
+CREATE TABLE table_name (field_name1 INT, field_name2 STRING);
+```
+
+c.2. External Table (unmanaged tables)
+- **Third level of organization**
+- *Outside the metastore*
+- `DROP TABLE` does not delete the data!
+- Cloning does not move the data.
+- `delta, csv, json, avro, parquet, orc, text`
+
+```sql
+-- Example 1:
+CREATE TABLE table_name
+USING DELTA
+LOCATION '/path/to/existing/data'
+
+-- Example 2:
+CREATE TABLE table_name
+(field_name1 INT, field_name2 STRING)
+LOCATION '/path/to/empty/directory'
+
+--Create table with external location
+CREATE TABLE table1
+    LOCATION 's3://<bucket>/<table_dir>';
+
+--Create table with external location + storage credential
+CREATE TABLE table1
+    LOCATION 's3://<bucket>/<table_dir>'
+    WITH CREDENTIAL <credential-name>;
+```
+
+d. **View**: saved query against one or more tables
+- *Temporary View*: not registered to a schema or catalog.
+    - Notebooks/Jobs: notebook/script level of scope
+    - Databricks SQL: query level of scope
+  
+```sql
+%sql
+CREATE TEMPORARY VIEW IF NOT EXISTS view_table AS (
+  SELECT *
+  FROM ...
+);
+```
+
+- **Global Temporary Views**: cluster level
+
+```sql
+-- Non-temporary view
+%sql
+CREATE VIEW IF NOT EXISTS view_table AS (
+  SELECT *
+  FROM ...
+);
+```
+
+<h3 style="font-weight:bold;"> b. General Data Modeling Concepts </h3>
+
+<h4 style="font-weight:bold;"> b.1 Keys, Constraints </h4>
+
+**Link**: https://docs.databricks.com/sql/language-manual/sql-ref-syntax-ddl-create-table-constraint.html
+
+<h4 style="font-weight:bold;"> b.2 Lookup Tables </h4>
+
+**Stream Static Joins**
+
+<h4 style="font-weight:bold;"> b.3 Slowly Changing Dimensions (SCD) </h4>
+
+*3 Types*
+- Type 0: No changes allowed (static/append)
+- Type 1: Overwrite (no history retained) -> use **delta time travel**
+- Type 2: add new record for each change and mark the old as obsolete
+
+<ins>For SCD Type 2<ins>
+
+```json
+{
+  "configuration": {
+    "pipelines.enableTrackHistory": "true"
+  }
+}
+```
+
+**Link**: https://docs.databricks.com/delta-live-tables/cdc.html#type2-track-history
+
+Review example from Git Repo from Databricks.
+- Keep in mind that the source table can have track columns like `isCurrent`, `start_date` and `end_date` so we will retain the full history of data.
+
+## **Topic 4: Build production pipelines using best practices around security and governance**
+
+<h3 style="font-weight:bold;"> a. Managing notebook and job permissions with ACLS </h3>
+
+**Link**: https://docs.databricks.com/data-governance/table-acls/object-privileges.html#requirements
+
+Requirements:
+- Enable and enforce TCL (admin).
+- Cluster must be enabled for TCL.
+
+Granting privilege of an object
+```sql
+GRANT [privilege] ON [object] TO [principal]
+```
+
+*object*:
+- `CATALOG`
+- `SCHEMA`
+- `TABLE`
+- `VIEW`
+- `FUNCTION`
+
+*privilege*:
+- `SELECT`
+- `CREATE`
+- `MODIFY`: add, delete and modify
+- `USAGE` (additional requirement for **schema object**)
+- `READ_METADATA`
+- `CREATE_NAMED_FUNCTION` (create UDF)
+- `MODIFY_CLASSPATH` (add files to Spark class path)
+- `ALL_PRIVILEGES`
+
+Object ownership
+```sql
+ALTER [object] OWNER TO `principal`
+```
+
+<h3 style="font-weight:bold;"> b. Dynamic view functions </h3>
+
+`current_user()`: get current user name
+`is_member()`: if user is a member of a specific dbt group.
+
+<ins>Column-level permissions<ins>
+
+```sql
+CREATE VIEW games_sales_redacted AS
+SELECT
+  customer_id,
+  CASE WHEN
+    is_member('auditors') THEN personal_id
+    ELSE 'REDACTED'
+  END AS personal_id,
+  store_id,
+  product_id,
+  total_price
+FROM games_sales_raw
+```
+
+<ins>Row_level permissions<ins>
+
+```sql
+CREATE VIEW games_sales_redacted AS
+SELECT
+  customer_id,
+  store_id,
+  product_id,
+  total_price
+FROM games_sales_raw
+WHERE
+  CASE
+    WHEN is_member('product_owner') THEN TRUE
+    ELSE product_type_id in ('10001','10004','100003')
+  END;
+```
+
+<h3 style="font-weight:bold;"> c. Securely storing personally identifiable information (PII) </h3>
+
+<h4 style="font-weight:bold;"> c.1. How Lakehouse Simplifies Compliance </h4>
+
+- Reduce copies of your PII
+- Realibly change, delete, export data
+- Use transaction logs
+
+<h4 style="font-weight:bold;"> c.2. Pseudonymized PII Lookup Table </h4>
+
+Adding a Salt to Natural Key (for GDPR)
+
+```python
+salt = dbuitls.secrets.get(scope="DA-ADE3.03",key="salt")
+spark.conf.set("da.salt",salt)
+```
+
+```sql
+%sql
+CREATE OR REPLACE FUNCTION salted_hashed(id STRING)
+RETURNS STRING
+RETURN sha2(concat(id,"${da.salt}"),256)
+```
+
+```python
+# ANSWER
+def load_user_lookup():
+    query = (spark.readStream
+                  .table("registered_users")
+                  .selectExpr("salted_hash(user_id) AS alt_id", "device_id", "mac_address", "user_id")
+                  .writeStream
+                  .option("checkpointLocation", f"{DA.paths.checkpoints}/user_lookup")
+                  .trigger(availableNow=True)
+                  .table("user_lookup"))
+    
+    query.awaitTermination()
+```
+
+*Review about point deletes*
+**Link**: https://docs.databricks.com/security/privacy/gdpr-delta.html?searchString=&from=0&sortby=_score&orderBy=desc&pageNo=1&aggregations=%5B%5D&uid=7dc8d13f-90bb-11e9-98a5-06d762ad9a62&resultsPerPage=10&exactPhrase=&withOneOrMore=&withoutTheWords=&pageSize=10&language=en&state=1&suCaseCreate=false
+
+
+<h4 style="font-weight:bold;"> c.3. Generalization </h4>
+
+- Categorical Generalization: Removes precision from data
+- Bining: identify groups of interest
+- Truncating IP addresses
+  - Rounding IP address to /24 CIDR
+  - Generalizes IP geolocation to city or neighbourhood level.
+- Rounding
+
+## **Topic 5: Configure alerting and storage to monitor and log production jobs**
+
+<h3 style="font-weight:bold;"> a. Setting up notifications </h3>
+
+**Link**: https://docs.databricks.com/workflows/jobs/job-notifications.html
+
+<h3 style="font-weight:bold;"> b. Configuring SparkListener </h3>
+
+`SparkListener` intercepts the events from the spark scheduler during execution of Spark Execution.
+
+We can extend this class by writing a custom listener.
+
+**First**, create a customize SparkListener
+
+```python
+from pyspark import SparkContext
+from pyspark import SparkConf
+from pyspark import SparkListener
+
+class MySparkListener(SparkListener):
+    def onApplicationStart(self, applicationStart):
+        print("Spark application started: " + applicationStart.appName)
+
+```
+
+- Create a job
+- Under Advanced Options click on Spark Config and add the following:
+
+```python
+spark.extraListeners com.example.MySparkListener
+```
+
+<h3 style="font-weight:bold;"> c. Recording logged metrics</h3>
+
+Cluster Logs:
+- *Event Log* (Lifecycle event: triggered by user/dbt)
+- *Driver Logs*:
+  - Standard output
+  - Standard errors
+  - Log4joutputs
+- *Metrics* (performance of the clusters)
+  - Overall workload
+  - Overall memory usage
+  - CPU usage
+  - Network usage
+
+<h3 style="font-weight:bold;"> d. Navigating and interpreting the Spark UI and Debugging errors</h3>
+
+To get to the cluster, click on the attached cluster once the job is running.
+
+*Streaming tab*
+- Check if the app is receiving any inputs events from the source (Input Rate).
+- *Processing time*: it's good if you can process each batch within 80% of your batch processing time.
+- *Completed batches*: last 1000 completed batches.
+
+*Batch Details page*
+- Input's details
+- Processing
+
+*Job details page*
+- DAG visualization
+
+*Task details page (most granular)*
+
+*Thread dump*
+- Snapshot of a JVM's thread states. To check slow-running task.
+- Check if the driver appears to be hanging or making no progress on queries
+
+*Driver Logs*
+- Exceptions (when a streaming job is not started)
+- Prints
+
+*Executor Logs*
+- If certain tasks are misbehaving and would like to see the logs for specific tasks.
+- Check the task you want to review and you will see the executor. Then go to the Cluster UI, click # nodes and then master (finally check the log4j output).
