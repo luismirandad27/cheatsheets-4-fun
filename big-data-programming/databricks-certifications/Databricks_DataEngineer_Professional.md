@@ -189,7 +189,10 @@ run_with_retry("LOCATION_OF_CALLEE_NOTEBOOK", 60, max_retries = 5)
 - Worker Node
 
 <ins>Permissions<ins>
-*******
+
+- **Can Attach To**: Attach notebook to cluster, view Spark UI, cluster metrics and driver logs.
+- **Can Restart**: Terminate, start and restart cluster.
+- **Can Manage**: Edit cluster, attach library to cluster, resize cluster, modify permissions.
 
 <ins>Autoscalling<ins>
 
@@ -217,7 +220,9 @@ run_with_retry("LOCATION_OF_CALLEE_NOTEBOOK", 60, max_retries = 5)
 
 <h4 style="font-style:italic;"> a.3. Jobs </h4>
 
-**Link**: https://docs.databricks.com/workflows/index.html#what-is-databricks-jobs
+**Link**: https://docs.databricks.com/workflows/index.html#what-is-databricks-jobs and 
+https://docs.databricks.com/security/auth-authz/access-control/jobs-acl.html#job-permissions
+
 
 - You can create and run jobs using **Jobs UI**, **Databricks CLI** or by invoking **Jobs API**.
 - Create jobs only in **Data Science & Engineering** or **Machine Learning** workspace.
@@ -232,6 +237,14 @@ run_with_retry("LOCATION_OF_CALLEE_NOTEBOOK", 60, max_retries = 5)
     - Java Applications
     - Databricks SQL queries, alerts and dashboards
 - Run jobs with **job cluster**, **all-purpose cluster** or **SQL warehouse**.
+- Permissions:
+  - No Permissions: view job detaills and settings
+  - Can View: view results, spark UI, logs of a job run
+  - Can Manage Run: Run Now, cancel run.
+  - Is Owner: Edit job settings, modify permissions, delete job
+- **A job cannot have more than one owner.**
+- **A job cannot have a group as an owner.** 
+
 
 <h4 style="font-style:italic;"> a.4. Databricks SQL </h4>
 
