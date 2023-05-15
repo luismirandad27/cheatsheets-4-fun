@@ -35,7 +35,7 @@
 - You can change the default language
 - You can override the language to execute on each cell.
 - *Some magic commands:*
-    - `%sh`: run shell code (`-e` to fail a cell if non-zero exit status)
+    - `%sh`: run shell code (`-e` to fail a cell if non-zero exit status). It runs only on the **Apache Spark driver** (not the workers).
     - `%fs`: to use the `dbutils` filesystem commands
     - `%md`: for markdown
 - A SQL result are automatically available as Python DataFrame (`_sqldf`)
@@ -187,6 +187,9 @@ run_with_retry("LOCATION_OF_CALLEE_NOTEBOOK", 60, max_retries = 5)
     - maintains the **SparkContext**
     - coordinates with the Spark executors.
 - Worker Node
+
+<ins>Permissions<ins>
+*******
 
 <ins>Autoscalling<ins>
 
@@ -724,12 +727,24 @@ def update_silver():
 update_silver()
 ```
 
-- `.trigger(availableNow=True)` will run this process in multiple batches until no data is available.
+- `.trigger(availableNow=True)` will run this process in multiple batches until no data is available. You can configure batch size with the `maxBytesPerTrigger` option.
+- `.trigger(processingTime='10 seconds')`: with this, you will specify a time duration (Time-based trigger intervals or fixed interval micro-batches).
+  - Default trigger interval: 500ms.
 - `query.awaitTermination()` to prevent the execution of the next batch.
 
 <h4 style="font-weight:bold;"> Writing to Multiple Tables </h4>
 
+**Link**: https://docs.databricks.com/structured-streaming/delta-lake.html#performing-stream-static-joins
+
 By using `foreachBatch`, we can execute custom data writing logic on each microbatch of streaming data. Here we are writing data into 2 tables on every microbatch.
+
+- Remember: `foreachBatch` is NOT idempotent.
+  - To change this scenario, use the options `txnVersion` and `txtAppId`. This will identify duplicate writes and ignore them.
+
+*Foreachbatch + MERGE pattern*:
+- Write streaming aggregates in **Update Mode**
+- Write a stream of database changes into a Delta table: *merge query for writing change data*
+- Write a stream of data into Delta table with deduplication: *inser-only merge query for deduplication*.
 
 ```python
 def write_twice(microBatchDF, batchId):
@@ -893,11 +908,15 @@ ANALYZE TABLE table
 COMPUTE STATISTICS FOR COLUMNS column;
 ```
 
-<ins>File Compaction (OPTIMIZE)<ins>
+<ins>Optimizations<ins>
 
-- Between 256MB and 1GB.
+**Link**: https://docs.databricks.com/delta/tune-file-size.html
 
-**Z-Ordering**
+**Optimize**
+
+- For tables larger than 1 TB, `OPTIMIZE` is recommended. Databricks does not automatically run `ZORDER`.
+
+*Z-Ordering*
 - Collocate related information in the same set of files.
 - Multiple columns make the algorithm to lose some efficiency.
 - High cardinality columns are a good choice.
@@ -920,14 +939,32 @@ FOR COLUMNS(column_key OPTIONS (fpp=0.1, numItems = 200))
 ```
 *This is not retroactive, this only applied for the new data written*
 
-**Auto Optimize**
-- During writes to a table
-- Optimized writes (128 MB)
+**Auto Compaction**
+- Combines small files within Delta table partitions to automatically reduce small file problems. *Occurs after a write and it will be performed on the same cluster*.
+- You can configure the output file size with `spark.databricks.delta.autoCompact.maxFileSize`.
+- You can configure the minimum number of files required to trigger auto compaction with `spark.databricks.delta.autoCompact.minNumFiles`.
+- Can be configured at the table or session level with:
+  - `delta.autoCompact` (Table)
+  - `spark.databricks.delta.autoCompact.enable` (Session)
 
-```python
-TBLPROPERTIES(delta.autoOptimize.optimizeWrite=true,
-delta.autoOptimize.autoCompact=true)
-```
+**Optimize Write**
+- More effective for partitioned table.
+- Use 128MB as the target file size.
+- This eliminates the necessity of using `coalesce(n)` or `repartition(n)`
+- Enabled by default for `MERGE`, `UPDATE` + subqueries, `DELETE` + subqueries.
+- Enabled by default for `INSERT` **when using SQL endpoints**
+- Configurations:
+  - `delta.optimizeWrite`
+  - `spark.databricks.delta.optimizeWrites.enabled`
+- Change target file size with `delta.targetFileSize`
+
+**Autotune**
+- Based on Workload:
+  - Use `delta.tuneFileSizesForRewrites` for targeted tables by many MERGE or DML.
+  - If not set this previous property to true, if Databricks detects 9 out of 10 previous operations were MERGE will set it to true.
+- Based on Table Size
+  - Databricks will not autotuned a table that you have tuned with a specific target size.
+  - The targe size varies depending on the current size of the Delta table.
 
 <h3 style="font-weight:bold;"> d. Deduplicating data </h3>
 
@@ -978,6 +1015,9 @@ write_query = (deduped_df.writeStream
 
 write_query.awaitTermination()
 ```
+
+**Data Skipping**
+
 
 <h3 style="font-weight:bold;"> e. Change Data Capture </h3>
 
@@ -1092,6 +1132,20 @@ CREATE VIEW IF NOT EXISTS view_table AS (
 <h4 style="font-weight:bold;"> b.2 Lookup Tables </h4>
 
 **Stream Static Joins**
+
+*Stream-static joins* joins the **latest valid version of a Delta table (static)** to a data stream using **stateless join** (no need of watermarking) 
+
+```python
+streamingDF = spark.readStream.table("orders")
+staticDF = spark.read.table("customers")
+
+query = (streamingDF
+  .join(staticDF, streamingDF.customer_id==staticDF.id, "inner")
+  .writeStream
+  .option("checkpointLocation", checkpoint_path)
+  .table("orders_with_customer_info")
+)
+```
 
 <h4 style="font-weight:bold;"> b.3 Slowly Changing Dimensions (SCD) </h4>
 
@@ -1273,6 +1327,22 @@ class MySparkListener(SparkListener):
 spark.extraListeners com.example.MySparkListener
 ```
 
+Store the logs from a streaming process
+```python
+query = (spark.readStream
+              .format("cloudFiles")
+              .option("cloudFiles.format", "json")
+              .option("cloudFiles.schemaLocation", f"{DA.paths.checkpoints}/streaming_logs")
+              .load(DA.paths.streaming_logs_json)
+              .writeStream
+              .option("mergeSchema", True)
+              .option("checkpointLocation", f"{DA.paths.checkpoints}/streaming_logs")
+              .trigger(availableNow=True)
+              .start(DA.paths.streaming_logs_delta))
+
+query.awaitTermination()
+```
+
 <h3 style="font-weight:bold;"> c. Recording logged metrics</h3>
 
 Cluster Logs:
@@ -1316,3 +1386,191 @@ To get to the cluster, click on the attached cluster once the job is running.
 *Executor Logs*
 - If certain tasks are misbehaving and would like to see the logs for specific tasks.
 - Check the task you want to review and you will see the executor. Then go to the Cluster UI, click # nodes and then master (finally check the log4j output).
+
+## **Topic 6: Follow best practices for managing, testing and deploying code**
+
+<h3 style="font-weight:bold;"> a. Managing dependencies</h3>
+
+<h4 style="font-weight:bold;"> a.1. Relative imports</h4>
+
+*With magic command*:
+
+```bash
+%run ./helpers/vehicle_model
+```
+
+*Refactor the Relative Import*
+
+```sql
+-- check you're current working location
+%sh pwd
+
+-- check the contents of the current directory
+%sh ls ./
+```
+
+By analyzing where the helpers are located you can do a relative import
+
+```python
+from helpers.vehicle_model import *
+```
+
+keep in mind that this only works with **Python files**. By the way, if you want to have a python file that works as a notebook you have to add the following code in the first line:
+
+```python
+# Databricks notebook source
+```
+
+*Appending to System Path*
+
+```python
+import sys
+sys.path.append(os.path.abspath('../modules'))
+```
+
+We can import from another repo.
+
+```python
+username = spark.sql("SELECT current_user()").first()[0]
+sys.path.append(f"/Workspace/Repos/{username}/myRepoExample")
+```
+
+<h3 style="font-weight:bold;"> b. Creating unit tests</h3>
+
+**Link**: https://docs.databricks.com/notebooks/testing.html
+
+<h4 style="font-weight:bold;"> b.1 Creating test functions</h4>
+
+```python
+# myTestFunctions.py
+def tableExists(tableName, dbName):
+  return spark.catalog.tableExists(f"{dbName}.{tableName}")
+
+def columnExists(dataFrame, columnName):
+  if columnName in dataFrame.columns:
+    return True
+  else:
+    return False
+
+def numRowsInColumnForValue(dataFrame, columnName, columnValue):
+  df = dataFrame.filter(col(columnName) == columnName)
+  return df.count()
+```
+
+<h4 style="font-weight:bold;"> b.2 Using Unit Test (pytest)</h4>
+
+```sql
+%pip install pytest
+```
+
+```python
+# Testing data
+
+import pytest
+from myTestFunctions import *
+
+# You have to create the dataset first that you want to test
+
+def test_tableExists():
+  assert tableExists(tableName, dbName) is True
+
+def test_columnExists():
+  assert columnExists(df, columnName) is True
+
+def test_numRowsInColumnForValue():
+  assert numRowsInColumnForValue(df, columnName, columnValue)
+```
+
+<h4 style="font-weight:bold;"> b.3 Executing Test</h4>
+
+```sql
+%pip install pytest
+```
+
+```python
+import pytest
+import os
+import sys
+
+repo_name = "<my-repo-name>"
+
+# Get the path to this notebook, for example "/Workspace/Repos/{username}/{repo-name}".
+notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
+
+# Get the repo's root directory name.
+repo_root = os.path.dirname(os.path.dirname(notebook_path))
+
+# Prepare to run pytest from the repo.
+os.chdir(f"/Workspace/{repo_root}/{repo_name}")
+print(os.getcwd())
+
+# Skip writing pyc files on a readonly filesystem.
+sys.dont_write_bytecode = True
+
+# Run pytest.
+retcode = pytest.main([".", "-v", "-p", "no:cacheprovider"])
+
+# Fail the cell execution if there are any test failures.
+assert retcode == 0, "The pytest invocation failed. See the log for details."
+```
+
+<h3 style="font-weight:bold;"> c. Creating integration tests</h3>
+
+*Still looking for resources :(*
+
+<h3 style="font-weight:bold;"> d. Scheduling Jobs</h3>
+
+**Link**: https://docs.databricks.com/workflows/jobs/schedule-jobs.html
+
+- Scheduled Jobs:
+  - Databricks enforces a minimum interval of 10 secods between subsequent runs (regardless of the seconds configuration in the cron expression)
+  - To deal with daylights savings, use UTC.
+- Continuous Jobs:
+  - Databricks pause a job after 5 consecutive failures within 24-hour period.
+  - There must be only one running instance.
+  - Delay between runs of 60 seconds.
+  - *Retry policies* or *task dependencies* not allowed.
+
+<h3 style="font-weight:bold;">e. Versioning Code/Notebooks</h3>
+
+**Link**: https://docs.databricks.com/repos/git-version-control-legacy.html
+
+*Enable / Disable Git Versioning*
+
+- Check the **Revision History**.
+- Link to Git Repo (first time is unlink).
+
+![](assets/DE-LinkNotebookToGit.png)
+- Save Now (on Revision History)
+
+*Other Options*
+- Revert or update notebook to a version from GitHub
+- Unlink notebook
+- Create a branch
+- Create a pull request
+- Rebase a branch (rebasing on top of the default branch of the parent is supported)
+
+Keep in mind that:
+- You can only link a notebook to an initialized Git repository that isn’t empty. 
+- If a notebook is linked to a GitHub branch that is renamed, the change is not automatically reflected in Databricks. You must re-link the notebook to the branch manually.
+
+<h3 style="font-weight:bold;">f. Orchestration Jobs</h3>
+
+*Configure Apache Spark Scheduler Pools for Efficiency*
+
+- By default, all queries started in a notebook run in the same *fair scheduling pool*.
+- Jobs generated by triggers use FIFO order.
+
+We can set a local property configuration to enable running streaming queries concurrently.
+
+```python
+spark.sparkContext.setLocalProperty("spark.scheduler.pool", "bronze")
+```
+
+*How to stop all streams*
+
+```python
+for stream in spark.streams.active:
+  stream.stop()
+  stream.awaitTermination()
+```
