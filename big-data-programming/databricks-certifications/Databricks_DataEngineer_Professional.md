@@ -997,9 +997,14 @@ As each micro-batch is processed, we must ensure that:
 - Records to be inserted *are not in the target table*
 
 *Watermark*: Spark can determine which data is still relevant for a given window and discard the rest. Any data with an event timestamp earlier than the watermark minus the duration will be considered old and will be discarded.
+
 ```python
 pyspark.sql.DataFrame.withWatermark
 ```
+
+If you are processing files by *modification time* can lead can results in records being processed in the wrong order. 
+
+For that use `withEventTimeOrder`
 
 *Window*: Bucketizes rows into one or more time windows given a timestamp column. You can perform aggregations for each **non-overlapping** interval.
 ```python
@@ -1094,6 +1099,28 @@ Change Data Storage (`_change_data`)
 *Read the examples of how to read the CDF table*
 
 **Link**: https://docs.databricks.com/delta/delta-change-data-feed.html#change-data-storage
+
+Remember:
+- `startingVersion`: Delta Lake version to start from.
+- `startingTimestamp`: Timestamp to start from.
+
+Using `ignoreDeletes` and `ignoreChanges`
+
+```python
+spark.readStream.format("delta")
+      .option("ignoreDeletes",True)
+      .load("path/")
+```
+
+In case you have deleted at partition boundaries, that means that Databricks only deleted the files from the metadata. To ignore the info in the `readStream`, use `ignoreDeletes` option.
+
+```python
+spark.readStream.format("delta")
+      .option("ignoreChanges",True)
+      .load("path/")
+```
+
+In case you have deleted data in multiple partitions use `ignoreChanges`.
 
 ## **Topic 3: Model data management solutions**
 
@@ -1452,6 +1479,32 @@ To get to the cluster, click on the attached cluster once the job is running.
 *Executor Logs*
 - If certain tasks are misbehaving and would like to see the logs for specific tasks.
 - Check the task you want to review and you will see the executor. Then go to the Cluster UI, click # nodes and then master (finally check the log4j output).
+
+<ins>Spark UI<ins>
+
+*Jobs Tab*
+Summary of all jobs in the Spark Application.
+- User, Total uptime, Scheduling mode, Number of jobs per status (active, completed, failed).
+
+*Jobs detail*
+Job detailed by ID.
+- Job Status (running, succeeded, failed), Number of stages per status, Associated SQL Query, Event timeline, **DAG visualization**
+
+*Stages Tab*
+- Duration of tasks, GC time, scheduler delay, shuffle read size/records, accumulators, etc.
+
+*Storage Tab*
+
+*Environment Tab*
+
+*Executors Tab*
+
+*SQL Tab*
+- Description, Submitted, Duration, Job IDs
+
+*Structured Streaming Tab*
+- Input Rate, Process Rate, Input Rows, Batch Duration, Operation Duration,
+
 
 ## **Topic 6: Follow best practices for managing, testing and deploying code**
 
