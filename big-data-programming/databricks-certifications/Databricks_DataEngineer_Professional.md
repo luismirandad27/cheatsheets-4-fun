@@ -343,6 +343,12 @@ b. Silver (validated) Layer (DELETE from sources)
 c. Gold (enriched) Layer (MERGE/OVERWRITE)
 - Cleaned data, ready for consumption
 - Read with Spark or Presto
+- You can use gold tables when
+  - Multiple downstream queries consume the table.
+  - Query results should be computed incrementally.
+- Consider using a view when:
+  - Your query is not complex.
+  - You want to reduce storage costs.
 
 <h4 style="font-style:italic;"> c.3. Core Functions </h4>
 
@@ -927,7 +933,7 @@ COMPUTE STATISTICS FOR COLUMNS column;
 
 **Optimize**
 
-- For tables larger than 1 TB, `OPTIMIZE` is recommended. Databricks does not automatically run `ZORDER`.
+- For tables larger than 1 TB, `OPTIMIZE` is recommended (to 1 GB). Databricks does not automatically run `ZORDER`.
 
 *Z-Ordering*
 - Collocate related information in the same set of files.
@@ -954,6 +960,7 @@ FOR COLUMNS(column_key OPTIONS (fpp=0.1, numItems = 200))
 
 **Auto Compaction**
 - Combines small files within Delta table partitions to automatically reduce small file problems. *Occurs after a write and it will be performed on the same cluster*.
+  - Files can be further compacted? -> [TRUE] -> it runs `OPTIMIZE` with 128 MB (instead of 1GB on the normal OPTIMIZE).
 - You can configure the output file size with `spark.databricks.delta.autoCompact.maxFileSize`.
 - You can configure the minimum number of files required to trigger auto compaction with `spark.databricks.delta.autoCompact.minNumFiles`.
 - Can be configured at the table or session level with:
@@ -971,6 +978,9 @@ FOR COLUMNS(column_key OPTIONS (fpp=0.1, numItems = 200))
   - `spark.databricks.delta.optimizeWrites.enabled`
 - Change target file size with `delta.targetFileSize`
 
+**Auto Optimize**
+- Consist in 2 complementary operations: *Optimized Writes* + *Auto Compaction*
+
 **Autotune**
 - Based on Workload:
   - Use `delta.tuneFileSizesForRewrites` for targeted tables by many MERGE or DML.
@@ -987,6 +997,14 @@ As each micro-batch is processed, we must ensure that:
 - Records to be inserted *are not in the target table*
 
 *Watermark*: Spark can determine which data is still relevant for a given window and discard the rest. Any data with an event timestamp earlier than the watermark minus the duration will be considered old and will be discarded.
+```python
+pyspark.sql.DataFrame.withWatermark
+```
+
+*Window*: Bucketizes rows into one or more time windows given a timestamp column. You can perform aggregations for each **non-overlapping** interval.
+```python
+pyspark.sql.DataFrame.window
+```
 
 Example:
 
@@ -1035,6 +1053,47 @@ write_query.awaitTermination()
 <h3 style="font-weight:bold;"> e. Change Data Capture </h3>
 
 **Link**: https://medium.com/dev-genius/real-time-data-integration-made-easy-with-change-data-capture-cdc-dd536f2d0f43
+
+Change Data Feed
+**Link**: https://docs.databricks.com/delta/delta-change-data-feed.html
+
+When to use it?
+- Delta changes include updates and/or deletes.
+- Small fraction of records are updated in each batch.
+- Data from external locations are CDC format.
+- Send data to downstream applications.
+
+When *not* to use it?
+- Delta changes are **append** only.
+- Most records in the table updated in each batch.
+- Find and ingest data outside of the Lakehouse.
+
+Use Cases:
+- Silver and Gold Tables (row-level changes)
+- Materialized Views (up-to-date aggregated datasets)
+- Transmit changes
+- Audit trail table
+
+Keep in mind that CDF has some limitations for tables that have the *column mapping feature* enabled.
+
+Enable CDF:
+```sql
+CREATE TABLE myTable (column1 Type, column2 Type) TBLPROPERTIES(delta.enableChangeDataFeed = true);
+
+ALTER TABLE myExistingTable SET TBLPROPERTIES (delta.enableChangeDataFeed = true)
+
+-- For all tables
+SET spark.databricks.delta.properties.defaults.enableChangeDataFeed = true;
+```
+
+Change Data Storage (`_change_data`)
+- Records change data for UPDATE, DELETE and MERGE operations.
+- Not applied to insert-only and full partition deletes.
+- If you run VACUUM command, the `_change_data` table data is also deleted.
+
+*Read the examples of how to read the CDF table*
+
+**Link**: https://docs.databricks.com/delta/delta-change-data-feed.html#change-data-storage
 
 ## **Topic 3: Model data management solutions**
 
@@ -1092,24 +1151,18 @@ c.2. External Table (unmanaged tables)
 - `delta, csv, json, avro, parquet, orc, text`
 
 ```sql
--- Example 1:
-CREATE TABLE table_name
-USING DELTA
-LOCATION '/path/to/existing/data'
+-- Create Database
+CREATE DATABASE example_db
+LOCATION '/path/something'
 
--- Example 2:
-CREATE TABLE table_name
-(field_name1 INT, field_name2 STRING)
-LOCATION '/path/to/empty/directory'
+-- The database will be in inside /path/something/example_db.db
+```
 
---Create table with external location
-CREATE TABLE table1
-    LOCATION 's3://<bucket>/<table_dir>';
+```sql
+-- Create Table
+CREATE TABLE my_table;
 
---Create table with external location + storage credential
-CREATE TABLE table1
-    LOCATION 's3://<bucket>/<table_dir>'
-    WITH CREDENTIAL <credential-name>;
+-- The table will be in: /path/something/example_db.db/my_table
 ```
 
 d. **View**: saved query against one or more tables
@@ -1544,6 +1597,14 @@ assert retcode == 0, "The pytest invocation failed. See the log for details."
   - Delay between runs of 60 seconds.
   - *Retry policies* or *task dependencies* not allowed.
 
+*Good practice for Setting a Structured Streaming Jobs*
+- Set `Retries` as unlimited.
+- Set `Maximum concurrent runs` to 1.
+- Set a new job cluster always (with Spark 2.1)
+- Set some email notifications in case of failures.
+- Do not schedule.
+- Do not set a timeout.
+
 <h3 style="font-weight:bold;">e. Versioning Code/Notebooks</h3>
 
 **Link**: https://docs.databricks.com/repos/git-version-control-legacy.html
@@ -1568,6 +1629,11 @@ Keep in mind that:
 - If a notebook is linked to a GitHub branch that is renamed, the change is not automatically reflected in Databricks. You must re-link the notebook to the branch manually.
 
 <h3 style="font-weight:bold;">f. Orchestration Jobs</h3>
+
+*Remember that before putting a job into production you must*:
+- Comment out unwanted files removal.
+- Display actions
+- SQL queries for debuggind purposes.  
 
 *Configure Apache Spark Scheduler Pools for Efficiency*
 
