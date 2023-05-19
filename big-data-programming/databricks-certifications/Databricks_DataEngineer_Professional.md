@@ -38,14 +38,21 @@
     - `%sh`: run shell code (`-e` to fail a cell if non-zero exit status). It runs only on the **Apache Spark driver** (not the workers).
     - `%fs`: to use the `dbutils` filesystem commands
     - `%md`: for markdown
+    - `%pip`: python libraries installation
+      - Remember that every time you are running this command, **the python interpreter will be restarted**
 - A SQL result are automatically available as Python DataFrame (`_sqldf`)
     - Databricks Runtime 13.0 (and above) support **IPython's output caching system**
+- Variables defined in one language (and hence in the REPL for that language) are not available in the REPL of another language.
+
+
+*Package Cells*: is a cell that is compiled when it is run. (Scala)
 
 <ins>Notebook Outputs<ins>
 
 **Link**: https://docs.databricks.com/notebooks/notebook-outputs.html
 
 - Results maximum 10,000 rows (2 MB)
+- If your notebook exceeds 20 MB in total, you will get an error (maybe caused by multiple `display()`).
 
 <ins>Scheduled Notebook Jobs<ins>
 
@@ -316,6 +323,20 @@ DELETE /api/2.0/repos/{repo_id} -> delete repo
 <h4 style="font-style:italic;"> b.2. PySpark and DataFrame API </h4>
 
 *Please review the Databricks Associate Developer for Apache Spark (Python) Cheatsheet*.
+
+<h4 style="font-style:italic;"> b.3. AQE (Adaptative Query Execution) </h4>
+
+**Link**: https://docs.databricks.com/optimizations/aqe.html
+
+Query re-optimization that occurs during query execution.
+
+Capabilities:
+- Dynamically changes sort merge join into broadcast hash join.
+- Dynamically coalesces partitions after shuffle exchange. 
+- Dynamically handles skew in sort merge join and shuffle hash join by splitting (and replicating if needed) skewed tasks into roughly evenly sized tasks.
+- Dynamically detects and propagates empty relations.
+
+**Don't apply to streaming queries and/or not contain at least one exchange (join, aggregations or windows operations).
 
 <h3 style="font-weight:bold;"> c. Delta Lake </h3>
 
@@ -751,7 +772,7 @@ update_silver()
   - Default trigger interval: 500ms.
 - `query.awaitTermination()` to prevent the execution of the next batch.
 
-<h4 style="font-weight:bold;"> Writing to Multiple Tables </h4>
+<h4 style="font-weight:bold;"> Stream-Static Joins </h4>
 
 **Link**: https://docs.databricks.com/structured-streaming/delta-lake.html#performing-stream-static-joins
 
@@ -785,6 +806,12 @@ def split_stream():
     query.awaitTermination()
 ```
 
+<h4 style="font-weight:bold;"> Stream-Stream Joins </h4>
+
+**Link**: https://www.databricks.com/blog/2018/03/13/introducing-stream-stream-joins-in-apache-spark-2-3.html
+
+- Unlike inner joins, the watermarks and event-time constraints are not optional for outer joins.
+
 <h4 style="font-weight:bold;"> Incremental Aggregations </h4>
 
 ```python
@@ -810,7 +837,7 @@ Because of the `groupBy`, a shuffle transformation will be performed, it's a goo
 spark.conf.set("spark.sql.shuffle.partitions",...)
 ```
 
-<h4 style="font-weight:bold;"> Multiplex Bronze (Autoloader) </h4>
+<h4 style="font-weight:bold;"> Multiplex Bronze </h4>
 
 In a Multiplex Bronze Table, data is ingested into a single Bronze table in its raw form. This table acts as a landing zone for all incoming data, which can be ingested from multiple sources such as IoT devices, logs, or databases (divided by a column called `topic`).
 
@@ -841,6 +868,23 @@ In this query we are using the following:
 - **AutoLoader**: by using `.format("clouderFiles")` and `.option("cloudFiles.format","json")`
 - **Broadcast Join**: `.join(F.broadcast(column, on= , how= )`
 - **Partitioning**: `.partitionBy("topic","week_part")`
+
+<ins>Autoloader<ins>
+
+**Link**: https://docs.databricks.com/ingestion/auto-loader/
+
+*Schema inference and evolution*: 
+- Supports JSON, CSV, Avro, Parquet, Text files.
+- To infer the schema, Autoloader uses the first 50GB or 1000 files of data as a sample.
+- For Schema evolution: when Autoloader detects a new column, the stream **stops** with *UnknownFieldException*
+  - However, the new schema inference has been performed withouth changing the data types of the previous columns.
+  - `cloudeFiles.schemaEvolutionMode`
+    - default(`addNewColumns`)
+    - `rescue`: schema not evolved and stream continues.
+    - `failOnNewColumns`: schema not evolved and stream fails.
+    - `none`: does not evolve and new columns ignored
+  - Rescued data column: added into `_rescued_data`
+
 
 <h4 style="font-weight:bold;"> Streaming from Multiplex Bronze  </h4>
 
