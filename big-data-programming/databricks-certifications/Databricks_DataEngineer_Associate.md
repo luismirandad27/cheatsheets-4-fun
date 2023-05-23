@@ -1415,7 +1415,8 @@ df.write.saveAsTable(
 
 By the way, if you want to make fine-grained access control on rows and columns, you can use *dynamic view functions*
 
-###### Reference
+---
+### References
 > Databricks Academy. Data Engineering with Databricks [Github Project]. GitHub
 > https://github.com/databricks-academy/data-engineering-with-databricks-english
 

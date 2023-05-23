@@ -725,5 +725,6 @@ Review the basics in Descriptive Statitics:
 - *Data enhancements*: the process of augmenting gold-layer tables with additional dataset provided by a stakeholder in data analysis.
 - *Data blending*: involves combining data from multiple sources.
 
-###### Reference
+---
+### References
 > Databricks Documentation: https://learn.microsoft.com/en-us/azure/databricks/

@@ -1948,7 +1948,8 @@ spark.sql('''
 ''')
 ```
 
-###### Reference
+---
+### References
 > Raju, D. Databricks Certified Associate Developer - Apache Spark 2022 [Online Course]. Udemy
 > https://www.udemy.com/course/databricks-certified-associate-developer-for-apache-spark/
 

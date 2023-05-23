@@ -1,4 +1,4 @@
-#  Databricks Data Engineer Professional Cheatsheet (In Progress)
+#  Databricks Data Engineer Professional Cheatsheet
 
 ## **Topic 1: Understand how to use and the benefits of using the Databricks platform and its tools**
 
@@ -139,40 +139,6 @@ dbutils.widgets.removeAll()
 %run /path/to/notebook $X="10" $Y="1"
 ```
 
-<ins>Run a Notebook from another notebook<ins>
-
-**Link**: https://docs.databricks.com/notebooks/notebook-workflows.html
-
-```bash
-%run ./shared-code-notebook
-```
-or
-```python
-# on calle notebook
-dbutils.notebook.exit("returnValue")
-
-# on caller notebook
-returnValue = dbutils.notebook.run("notebook-name",60, {"argument":"data",...})
-```
-fancy way to handle errors
-```python
-# Errors throw a WorkflowException.
-
-def run_with_retry(notebook, timeout, args = {}, max_retries = 3):
-  num_retries = 0
-  while True:
-    try:
-      return dbutils.notebook.run(notebook, timeout, args)
-    except Exception as e:
-      if num_retries > max_retries:
-        raise e
-      else:
-        print("Retrying error", e)
-        num_retries += 1
-
-run_with_retry("LOCATION_OF_CALLEE_NOTEBOOK", 60, max_retries = 5)
-```
-
 <h4 style="font-style:italic;"> a.2. Clusters </h4>
 
 **Link**: https://docs.databricks.com/clusters/configure.html
@@ -283,7 +249,7 @@ Useful Link: https://faun.pub/relational-entities-on-databricks-2a46c31518ce
 - Merge or delete branches
 - Rebase a branch
 
-Check the API documentation to use some endpoint to interact with your Repos: https://docs.databricks.com/api-explorer/workspace/repos/create
+Check the API documentation to use some endpoints to interact with your Repos: https://docs.databricks.com/api-explorer/workspace/repos/create
 
 ```bash
 POST /api/2.0/repos -> create repo
@@ -336,7 +302,7 @@ Capabilities:
 - Dynamically handles skew in sort merge join and shuffle hash join by splitting (and replicating if needed) skewed tasks into roughly evenly sized tasks.
 - Dynamically detects and propagates empty relations.
 
-**Don't apply to streaming queries and/or not contain at least one exchange (join, aggregations or windows operations).
+**Don't apply to streaming queries and/or not contain at least one exchange (join, aggregations or windows operations).**
 
 <h3 style="font-weight:bold;"> c. Delta Lake </h3>
 
@@ -380,59 +346,6 @@ c. Gold (enriched) Layer (MERGE/OVERWRITE)
 5. DML Operations
 6. Metadata Management
 7. Data Compaction and Optimization (Z-order and data skipping).
-
-*Aditional Things*
-
-<ins>Vacuum<ins>
-
-**Link**: https://docs.databricks.com/sql/language-manual/delta-vacuum.html
-
-Removes all files from the table directory that are not managed by Delta, as well as data files that are no longer in the latest state of the transaction log and are older thatn a retention treshold.
-
-- Skip directories with an *underscore* (_delta_log) except for partitions.
-- Default treshold: 7 days.
-
-```sql
-VACUUM table_name [RETAIN num HOURS] [DRY RUN]
-```
-
-`DRY RUN` return a list of top 1000 files to be deleted.
-
-<ins>Delta Clone<ins>
-
-**Link**: https://docs.databricks.com/delta/clone.html
-
-- *Deep Clone*: copy the source table data to the clone target **in addition to the metadata**. Includes: schema, partitioning, invariants, nullability.
-  - After re-executing a deep clone, we only copy those files that were written during the most recent transaction.
-  - We can use deep clone to set different table properties for the targe table.
-
-```sql
-CREATE [OR REPLACE] TABLE [IF NOT EXISTS] delta.`/path/target` CLONE delta.`/path/source`; --Deep Clone
-
-CREATE OR REPLACE TABLE target_table
-DEEP CLONE source_table
-LOCATION '/path/'; --Deep Clone
-
-ALTER TABLE target_table
-SET TBLPROPERTIES
-(
-  delta.logRetentionDuration = '3650 days',
-  delta.deletedFileRetentionDuration = '3650 days'
-)
-```
-
-- *Shallow Clone*: does not copy the data files to the clone target (only metadata).
-  - Only will contain *read-only permissions*
-
-```sql
-CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source`; --Shallow Clone
-
-CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source` VERSION AS OF 3; --Shallow Clone
-
-CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source` TIMESTAMP AS OF "2023-05-14";--Shallow Clone
-```
-
-- Cloning is not the same as `CTAS`.
 
 <h3 style="font-weight:bold;"> d. Databricks CLI </h3>
 
@@ -695,8 +608,6 @@ POST /api/2.1/jobs/runs/delete
 }
 ```
 
-*and so on...*
-
 **Get a single job run**
 ```bash
 GET /api/2.1/jobs/runs/get?run_id=0&include_history=true
@@ -743,11 +654,7 @@ POST /api/2.1/jobs/runs/submit
 
 ## **Topic 2: Build data processing pipelines using the Spark and Delta Lake APIs**
 
-<h3 style="font-weight:bold;"> a. Building batch-processed ETL pipelines </h3>
-
-**PENDING**
-
-<h3 style="font-weight:bold;"> b. Building incrementally processed ETL pipelines </h3>
+<h3 style="font-weight:bold;"> a/b. Building batched/incrementally processed ETL pipelines </h3>
 
 <h4 style="font-weight:bold;"> Simple Incremental ETL </h4>
 
@@ -1096,9 +1003,6 @@ write_query = (deduped_df.writeStream
 write_query.awaitTermination()
 ```
 
-**Data Skipping**
-
-
 <h3 style="font-weight:bold;"> e. Change Data Capture </h3>
 
 **Link**: https://medium.com/dev-genius/real-time-data-integration-made-easy-with-change-data-capture-cdc-dd536f2d0f43
@@ -1260,6 +1164,57 @@ CREATE VIEW IF NOT EXISTS view_table AS (
 );
 ```
 
+<ins>VACUUM<ins>
+
+**Link**: https://docs.databricks.com/sql/language-manual/delta-vacuum.html
+
+Removes all files from the table directory that are not managed by Delta, as well as data files that are no longer in the latest state of the transaction log and are older thatn a retention treshold.
+
+- Skip directories with an *underscore* (_delta_log) except for partitions.
+- Default treshold: 7 days.
+
+```sql
+VACUUM table_name [RETAIN num HOURS] [DRY RUN]
+```
+
+`DRY RUN` return a list of top 1000 files to be deleted.
+
+<ins>Delta Clone<ins>
+
+**Link**: https://docs.databricks.com/delta/clone.html
+
+- *Deep Clone*: copy the source table data to the clone target **in addition to the metadata**. Includes: schema, partitioning, invariants, nullability.
+  - After re-executing a deep clone, we only copy those files that were written during the most recent transaction.
+  - We can use deep clone to set different table properties for the targe table.
+
+```sql
+CREATE [OR REPLACE] TABLE [IF NOT EXISTS] delta.`/path/target` CLONE delta.`/path/source`; --Deep Clone
+
+CREATE OR REPLACE TABLE target_table
+DEEP CLONE source_table
+LOCATION '/path/'; --Deep Clone
+
+ALTER TABLE target_table
+SET TBLPROPERTIES
+(
+  delta.logRetentionDuration = '3650 days',
+  delta.deletedFileRetentionDuration = '3650 days'
+)
+```
+
+- *Shallow Clone*: does not copy the data files to the clone target (only metadata).
+  - Only will contain *read-only permissions*
+
+```sql
+CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source`; --Shallow Clone
+
+CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source` VERSION AS OF 3; --Shallow Clone
+
+CREATE TABLE db.target_table SHALLOW CLONE delta.`/path/source` TIMESTAMP AS OF "2023-05-14";--Shallow Clone
+```
+
+- Cloning is not the same as `CTAS`.
+
 <h3 style="font-weight:bold;"> b. General Data Modeling Concepts </h3>
 
 <h4 style="font-weight:bold;"> b.1 Keys, Constraints </h4>
@@ -1391,46 +1346,7 @@ WHERE
 
 <h4 style="font-weight:bold;"> c.2. Pseudonymized PII Lookup Table </h4>
 
-Adding a Salt to Natural Key (for GDPR)
-
-```python
-salt = dbuitls.secrets.get(scope="DA-ADE3.03",key="salt")
-spark.conf.set("da.salt",salt)
-```
-
-```sql
-%sql
-CREATE OR REPLACE FUNCTION salted_hashed(id STRING)
-RETURNS STRING
-RETURN sha2(concat(id,"${da.salt}"),256)
-```
-
-```python
-# ANSWER
-def load_user_lookup():
-    query = (spark.readStream
-                  .table("registered_users")
-                  .selectExpr("salted_hash(user_id) AS alt_id", "device_id", "mac_address", "user_id")
-                  .writeStream
-                  .option("checkpointLocation", f"{DA.paths.checkpoints}/user_lookup")
-                  .trigger(availableNow=True)
-                  .table("user_lookup"))
-    
-    query.awaitTermination()
-```
-
-*Review about point deletes*
-**Link**: https://docs.databricks.com/security/privacy/gdpr-delta.html?searchString=&from=0&sortby=_score&orderBy=desc&pageNo=1&aggregations=%5B%5D&uid=7dc8d13f-90bb-11e9-98a5-06d762ad9a62&resultsPerPage=10&exactPhrase=&withOneOrMore=&withoutTheWords=&pageSize=10&language=en&state=1&suCaseCreate=false
-
-
-<h4 style="font-weight:bold;"> c.3. Generalization </h4>
-
-- Categorical Generalization: Removes precision from data
-- Bining: identify groups of interest
-- Truncating IP addresses
-  - Rounding IP address to /24 CIDR
-  - Generalizes IP geolocation to city or neighbourhood level.
-- Rounding
+**Link**: https://docs.databricks.com/security/privacy/gdpr-delta.html
 
 ## **Topic 5: Configure alerting and storage to monitor and log production jobs**
 
@@ -1498,6 +1414,8 @@ Cluster Logs:
 
 To get to the cluster, click on the attached cluster once the job is running.
 
+**Link**: https://docs.databricks.com/clusters/debugging-spark-ui.html
+
 *Streaming tab*
 - Check if the app is receiving any inputs events from the source (Input Rate).
 - *Processing time*: it's good if you can process each batch within 80% of your batch processing time.
@@ -1524,7 +1442,11 @@ To get to the cluster, click on the attached cluster once the job is running.
 - If certain tasks are misbehaving and would like to see the logs for specific tasks.
 - Check the task you want to review and you will see the executor. Then go to the Cluster UI, click # nodes and then master (finally check the log4j output).
 
-<ins>Spark UI<ins>
+<ins>Spark Web UI<ins>
+
+**Link**: https://spark.apache.org/docs/latest/web-ui.html
+
+**Review very carefully the documentation, many questions assess the way you can interpret the information display accross the features**
 
 *Jobs Tab*
 Summary of all jobs in the Spark Application.
@@ -1679,7 +1601,7 @@ assert retcode == 0, "The pytest invocation failed. See the log for details."
 
 <h3 style="font-weight:bold;"> c. Creating integration tests</h3>
 
-*Still looking for resources :(*
+Assess the interaction between subsystems.
 
 <h3 style="font-weight:bold;"> d. Scheduling Jobs</h3>
 
@@ -1711,8 +1633,8 @@ assert retcode == 0, "The pytest invocation failed. See the log for details."
 - Check the **Revision History**.
 - Link to Git Repo (first time is unlink).
 
-![](assets/DE-LinkNotebookToGit.png)
-- Save Now (on Revision History)
+<img alt="" src="assets/DE-LinkNotebookToGit.png" style="height:400px"/>
+<br>
 
 *Other Options*
 - Revert or update notebook to a version from GitHub
@@ -1727,10 +1649,10 @@ Keep in mind that:
 
 <h3 style="font-weight:bold;">f. Orchestration Jobs</h3>
 
-*Remember that before putting a job into production you must*:
-- Comment out unwanted files removal.
+*Remember that before putting a job into production you must comment out*:
+- Unwanted files removal.
 - Display actions
-- SQL queries for debuggind purposes.  
+- SQL queries for debugging purposes.  
 
 *Configure Apache Spark Scheduler Pools for Efficiency*
 
@@ -1750,3 +1672,10 @@ for stream in spark.streams.active:
   stream.stop()
   stream.awaitTermination()
 ```
+
+---
+### References
+> [Databricks Documentation.](https://docs.databricks.com/)
+> [Databricks Certified Data Engineer - Professional](https://www.udemy.com/course/databricks-certified-data-engineer-professional/) by Derar Alhussein on Udemy
+> [Practice Exams: Databricks Data Engineer Professional](https://www.udemy.com/course/practice-exams-databricks-data-engineer-professional-k/) by Derar Alhussein on Udemy
+> [Databricks Certified Data Engineer Professional - Mock Exams](https://www.udemy.com/course/databricks-certified-data-engineer-professional-practice-exams/)  by Certification Champs on Udemy
