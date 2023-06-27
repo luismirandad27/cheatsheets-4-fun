@@ -50,6 +50,11 @@ Running an specific model
 dbt run --select dim_mymodel
 ```
 
+Materialize a model and its downstream models
+```bash
+dbt run --select dim_mymodel+
+```
+
 - Part of the modularity of your pipeline is to create multiple **stages** before feeding your last table.
 
 Calling a previous model (reference)
@@ -87,3 +92,14 @@ SELECT * FROM ...
     - things that are occuring or have occurred (events, clicks, votes)
 - *Dimension (dim)*
     - people, place, or thing, ...
+
+### 5. **Sources**
+- Direct table references
+- Avoid changing manually the location or the naming of the table
+- Configuration would be only once in the `.yml` file.
+- You can visualize raw tables in your lineage
+
+```sql
+{{ source('schema','table_name') }}
+-- select * from schema.table_name
+```
