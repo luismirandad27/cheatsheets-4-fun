@@ -243,3 +243,161 @@ The generated documentation includes the following:
 - Model, source and columns descriptions
 - Generic tests added to a column
 - The underlying SQL code
+
+### 8. **Deployment**
+
+- Dedicated production branch (known as the default branch)
+- Dedicated production schema (`dbt_production`)
+- Run any dbt command on schedule
+
+*How to create your Deployment Environment*
+- General Settings: the dbt version
+- Data Warehouse Connection
+- Deployment Credentials:
+  **Use a separate data warehouse account**
+  **The schema should be different**
+
+*Scheduling a job*
+- Select the deployment environment
+- Set the dbt commands to be executed.
+- Set the triggers 
+
+
+Example of good dbt commands order:
+```bash
+dbt depts #for dependencies
+dbt run
+dbt test
+dbt docs generate
+```
+
+## *Jinja, Macros and Packages * course
+
+### **1. Jinja**
+- Python based templating language
+- Set the foundations for Macros
+
+The basics
+```sql
+{# #} -- This is for commenting jinja code
+{{ ... }} -- These will print text to the rendered file
+{% %} -- This is used for jinja statements 
+```
+
+Dictionaries
+```sql
+{% set person = {
+    'student_id': '123456789',
+    'student_name': 'Luis Miguel Miranda'
+}%}
+
+-- Rendering the name of the student
+{{ person['student_name'] }}
+
+```
+
+Lists
+```sql
+{% set my_fav_videogames = ['Fifa','Call of Duty','Battlefield']}
+
+-- Rendering the name of the second element
+{{ my_fav_videogames[1] }}
+
+```
+
+If/else statements
+```sql
+{% set my_grade = 90 %}
+
+{% if my_grade > 95 %}
+  Oh wow! You are a smart guy!
+{% else %}
+  Oh keep going!
+{% endif %}
+```
+
+For Loops
+```sql
+{% set my_fav_videogames = ['Fifa','Call of Duty','Battlefield']}
+
+{% for my_videogame in my_fav_videogames %}
+  I love playing {{ my_videogame }}
+{% endfor %}
+```
+
+Macros
+```sql
+{% macro display_stud_name (name, is_male = '1') %}
+
+  {% if is_male == '0' %}
+    Her name is {{ name }}
+  {% else %}
+    His name is {{ name }}
+  {% endif %}
+
+{% endmacro %}
+```
+
+### **2. Macros**
+
+- Write generic logic once
+- Re-use the logic throughout your project
+- Packages allow you to import macros other developers wrote
+- Think about DRY vs Readable Code
+  - DRY stands for "Don't Repeat Yourself"
+  - Means to abstract away the logic into macros
+
+```sql
+{% macro convert_cents_to_dollar(column_name, num_decimal) %}
+  round(1.0 * {{ column_name }} / 100, {{ num_decimal}})
+{% endmacro %}
+```
+
+### **3. Packages**
+
+We need to create `packages.yml` inside the project folder
+
+```yml
+packages:
+  - package: dbt-labs/dbt_utils
+    version: 1.1.0
+  - package: <github link>
+    revision: master
+  - local: sub-project
+```
+
+in the command line we must run the following
+```bash
+dbt deps
+```
+
+### **4. More Advanced Macro and Packages**
+
+- grant_select macro
+```sql
+{% macro grant_select(schema=target.schema, role=target.role) %}
+
+  {% set sql %}
+  grant usage on schema {{ schema }} to role {{ role }};
+  grant select on all tables in schema {{ schema }} to role {{ role }};
+  grant select on all views in schema {{ schema }} to role {{ role }};
+  {% endset %}
+
+  {{ log('Granting select on all tables and views in schema ' ~ target.schema ~ ' to role ' ~ role, info=True) }}
+  {% do run_query(sql) %}
+  {{ log('Privileges granted', info=True) }}
+
+{% endmacro %}
+```
+
+- We are using the `run_query` macro to run SQL commands
+  - After executing the macro, it will create a file type called agate.
+- To display some logs, we can use the `log` macro
+- Other interesting functions:
+  - `dbt_utils.get_relations_by_prefix(database, schema, prefix)`
+- The `target` contains the information about the connection to the warehouse.
+
+How to run a macro independently
+```bash
+dbt run-operation grante_select
+```
