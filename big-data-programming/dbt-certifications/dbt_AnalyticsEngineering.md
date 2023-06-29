@@ -401,3 +401,118 @@ How to run a macro independently
 ```bash
 dbt run-operation grante_select
 ```
+
+## *Analyses and Seeds* course
+
+### **1. Analyses**
+
+- SQL files in the analyses folder.
+- Support Jinja
+- Can be compiled with `dbt compile`
+- One off queries and training queries (exploration)
+- Auditing / refactoring
+
+### **2. Seeds**
+
+- **csv** files in the data folder
+- Build a table from a small amount of data in a csv file
+- Build these tables with `dbt seed`
+- To refer these tables you can use the `{{ref()}}` function.
+  - The name of the parameter is gonna be the name of the seed file.
+- Examples:
+  - Country codes
+  - Employee id/emails (if the data is really small)
+
+## *Advanced Materializations* course
+
+5 types: tables, views, ephemeral, incremental, snapshot.
+
+You can configure for every model by updating the `dbt_projects.yml`
+
+```yml
+models:
+  model_name:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+```
+
+### **Ephemeral**
+
+- Does not exist in the database
+- Reusable code snippet
+- Interpolated as a CTE
+- If you created previously a table or a view and you want to change it into an ephemeral, it won't delete the view/table
+- Recommended only for very light-weight transformation
+
+### **Incremental**
+
+- Historical data doesn't change.
+```yml
+{{
+  config(
+    materialized= 'incremental'
+  )
+}}
+```
+
+How to identify new rows to just add
+```sql
+with table_events as (
+  select * from {{ source('database','table_name') }}
+  {% if is_incremental() %}
+  where date_column >= (select max(max_column_date) from {{ this }})
+  {% endif %}
+)
+```
+
+4 things to do when we change to incremental.
+- model already exist as an object
+- the object should be a table
+- the model was configured with `materialized = incremnetal`
+- the `--full-refresh` will recreate the entire table.
+
+If we make a wider range of time for our incremental table, we could get some duplicate records. We have to make one change
+
+```yml
+{{
+  config(
+    materialized= 'incremental',
+    unique_key = 'column_name_id' 
+  )
+}}
+```
+
+It's going to perform a MERGE instead of a INSERT.
+
+### **Snapshot**
+
+- Implement SCD Type 2 over mutable source tables.
+- We can identify the lifetime of each row by the columns `dbt_valid_from` and `dbt_valid_to`.
+- We can preserve the current state of the records.
+
+```sql
+{% snapshot orders_snapshot %}
+
+{{
+    config(
+      target_database='analytics',
+      target_schema='snapshots',
+      unique_key='id',
+
+      strategy='timestamp',
+      updated_at='updated_at',
+
+      strategy='check',
+      check_cols = ['column_1','column_2']
+    )
+}}
+
+select * from {{ source('jaffle_shop', 'orders') }}
+
+{% endsnapshot %}
+```
+2 strategies:
+- Timestamp: and define the `updated_at` column
+- Check: and define the `check_cols`
