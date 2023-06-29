@@ -516,3 +516,258 @@ select * from {{ source('jaffle_shop', 'orders') }}
 2 strategies:
 - Timestamp: and define the `updated_at` column
 - Check: and define the `check_cols`
+
+## *Advanced Testing* course
+
+- Tests = assertions
+
+*Testing techniques*
+1. Interactive / Ad-hoc queries: query to test the PK
+2. Standalone saved query: saving the query test into the project
+3. Expected results: This adds context and information to the tests.
+
+*Testing Strategies*
+- Test on a Schedule: standalone test w/expected results
+
+*Good test*: automated, fast, reliable, informative, focused.
+
+*What to test*
+- Contents of the data
+- Constrains of the table
+- The grain of the table
+
+```yml
+- unique
+- not_null
+- accepted_values
+- other packages
+```
+
+- Between 2 objects:
+  - Compare values in one model to a source of truth in another model.
+  - Ensure data has neither been erroneously added or remove
+
+  ```yml
+  - relationship
+  - dbt_utils.equality
+  - dbt_expectations.expect_table
+  ```
+
+- Testing the freshness of raw source data
+`dbt source freshness`
+- Making some notification when the raw data is not up to date
+- Temporary testing: to check efficiently refactoring (`audit_helper`)
+
+*Where to locate your tests*
+1. On every models package -> using generic tests in the schema.yml file
+  - This can be triggered by using `dbt tests` or `dbt build`
+  - This can be executed in development and production job.
+2. Creating specific tests -> using sql files in the /tests folder
+  - Must be referenced in the specific schema.yml
+  - This can be triggered by using `dbt tests` or `dbt build`
+  - This can be executed in development and production job.
+3. Source freshness:
+  - Should be specified on the models folder where we are using the raw data
+  - Going to be triggered with `dbt source freshness`
+  - Use it on production jobs
+4. Testing over the entire project:
+  - configured in the `dbt_project.yml` file.
+  - the test will act on the whole project to test wether you have defined tests (or documentation).
+  - Run it with `dbt run-operation`
+  - When: development adhoc or during continuous integration.
+
+```yml
+models:
+  project_name:
+    +required_tests: {"unique.*|not_null": 2}
+    marts:
+      +required_tests: {"relationship.*": 1}
+      core:
+        +materialized: table
+    staging:
+      +materialized: view
+```
+
+- the first required test will be executed
+- the second required test will be executed if we set the test in the yml file of the marts folder.
+
+To execute the required tests:
+
+```bash
+dbt run-operation required_tests
+```
+
+To avoid passing a required test for an specific model
+```sql
+{{ config(required_tests=None) }}
+```
+
+*When to test*
+- Test in development phase
+- Run tests automatcally as an approval/CI
+- Manual testing vs automated testing
+1. Test while adding or modifying dbt code -> use dbt build
+2. Test while deploying your data in production -> if the test fail, we have to make a rollback.
+3. Test while opening pull requests (CI) -> if the `dbt build --models state:modified+` failed, mark PR as failed, don't allow PR to be merged.
+4. Test in QA branch before your dbt code reaches main
+
+*Testing commands*
+- dbt test: run tests defined on models, sources, snapshots, seeds.
+```bash
+dbt test 
+dbt test --select one_specific_model
+dbt test --select folder.sub_folder.* //running all models in package
+dbt test --select test_type:singular
+dbt test --select test_type:generic
+dbt test --exclude source:* //only models
+dbt test --store-failures
+```
+
+Other examples
+```bash
+dbt test -s source:*
+dbt build --fail-fast
+```
+
+How to store test failures in the database
+```bash
+dbt test -s my_model --store-failures
+```
+
+it's going to create a table in the data warehouse with the observed records
+
+### **Singular Tests**
+
+Create a sql file in the /tests folder
+
+```sql
+SELECT
+  amount
+FROM {{ ref('stg_mymodel') }}
+WHERE
+  amount <= 0
+```
+
+```bash
+dbt test -s my_stgtest.sql
+```
+
+### **From Singular Tests to Generic Test**
+Tip: create a subfolder /generic to store your generic test;
+
+```sql
+{% test  assert_column_is_greater_than_zero(model,column_name) %}
+SELECT
+  {{column_name}}
+FROM {{ model }}
+WHERE
+  {{column_name}} <= 0
+{% endtest %}
+```
+
+Add the generic test into the schema.yml file
+```yml
+- name: model_name
+  columns:
+    - name: column_1
+      tests:
+        - assert_column_is_greater_than_zero
+```
+
+### **Using dbt Packages**
+
+Most of the built-in test macros are located in dbt_utils package.
+
+```yml
+- name: model_name
+  tests:
+    - dbt_utils.expression_is_true:
+      expression: "mycolumn > 5"
+
+  columns:
+    - name: column_1
+      tests:
+        - unique
+```
+
+Another one is dbt_expectations package
+```yml
+- name: model_name
+  tests:
+    - dbt_utils.expression_is_true:
+      expression: "mycolumn > 5"
+
+  columns:
+    - name: column_1
+      tests:
+        - assert_column_is_greater_than_zero
+        - dbt_expectations.expect_column_values_to_be_between:
+            min_value: 5
+            row_condition: "column_2 is not null"
+            strictly: True
+        - dbt_expectations.expect_column_values_to_be_between: 
+          # this will perform what the dbt_utils.expression-is-true test does!
+              min_value: 0
+              row_condition: "column_2 is not null" 
+              strictly: false
+          - dbt_expectations.expect_column_mean_to_be_between: 
+          # this will perform what our singular and generic tests do!
+              min_value: 1
+              group_by: [customer_id] 
+              row_condition: "order_id is not null" # (Optional)
+              strictly: false
+```
+
+Finally another one is audit_helper. You can create a new analyses for this evaluations.
+
+```sql
+{% set dbt_relation = ref('my_model') %}
+
+{{
+  audit_helper.compare_relations(
+    a_relation = old_etl_relation,
+    b_relation = dbt_relation,
+    primary_key = "column_id"
+  )
+}}
+
+```
+
+Comparing column values
+```sql
+
+{% macro audit_helper_compare_column_values() %} -- to use this macro, replace the table references and primary key and dbt run-operation audit_helper_compare_column_values
+{%- set columns_to_compare=adapter.get_columns_in_relation(ref('orders__deprecated'))  -%}
+
+{% set old_etl_relation_query %}
+    select * from {{ ref('orders__deprecated') }}
+{% endset %}
+
+{% set new_etl_relation_query %}
+    select * from {{ ref('orders') }}
+{% endset %}
+
+{% if execute %}
+    {% for column in columns_to_compare %}
+        {{ log('Comparing column "' ~ column.name ~'"', info=True) }}
+        {% set audit_query = audit_helper.compare_column_values(
+                a_query=old_etl_relation_query,
+                b_query=new_etl_relation_query,
+                primary_key="order_id",
+                column_to_compare=column.name
+        ) %}
+
+        {% set audit_results = run_query(audit_query) %}
+
+        {% do log(audit_results.column_names, info=True) %}
+        {% for row in audit_results.rows %}
+            {% do log(row.values(), info=True) %}
+        {% endfor %}
+    {% endfor %}
+{% endif %}
+
+{% endmacro %}
+
+```
+
+### **Testing Configurations**
