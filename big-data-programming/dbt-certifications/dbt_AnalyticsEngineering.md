@@ -36,6 +36,7 @@ This cheatsheet is based dbt courses available in https://courses.getdbt.com/col
 -- Materializing a model into a table (Jinja template)
 -- Default materialization is View
 {{ config (
+    alias = 'my_alias_table_name',
     materialized="table"
 )}}
 ```
@@ -120,6 +121,11 @@ sources:
         freshness:
           warn_after: {count: 12, period: hour}
           error_after: {count: 24, period: hour}
+        columns:
+          - name: column_name
+            tests:
+              - unique
+              - not_null
 ```
 
 Execute source freshness verification
@@ -490,6 +496,7 @@ It's going to perform a MERGE instead of a INSERT.
 
 - Implement SCD Type 2 over mutable source tables.
 - We can identify the lifetime of each row by the columns `dbt_valid_from` and `dbt_valid_to`.
+  - Extra fields: `dbt_scd_id` and `dbt_updated_at` (both internals).
 - We can preserve the current state of the records.
 
 ```sql
@@ -516,6 +523,16 @@ select * from {{ source('jaffle_shop', 'orders') }}
 2 strategies:
 - Timestamp: and define the `updated_at` column
 - Check: and define the `check_cols`
+  - You can use `check_cols = 'all'` to track all columns
+  - In that case, consider using a surrogate key to condense many columns into a single column.
+
+`invalidate_hard_deletes = True` helps us to track the rows that no longer exist.
+
+*Best practices*:
+- Snapshot your source data
+- Include as many columns as possible
+- Avoid joins in your snapshot query
+- Limit the amount of transformation
 
 ## *Advanced Testing* course
 
@@ -771,3 +788,357 @@ Comparing column values
 ```
 
 ### **Testing Configurations**
+
+Types of **model** configurations:
+- materialized
+- tags
+- schema
+- persist_docs
+
+Types of **test** configurations:
+- severity and threshold
+- where
+- limit
+- store failures
+
+```yml
+tests:
+  - not_null:
+    config:
+      limit: 10  # limit of return records that not cover the test
+      where: "updated_at > '2023-06-01'"
+      severity: error # could be warn as well
+      warn_if: ">50"
+      error_if: ">100"
+      store_failures: true
+      schema: test_failures
+```
+
+In generic test file
+```sql
+{{
+  config(
+    severity = "warn"
+  )
+}}
+
+SELECT *
+FROM ...
+```
+
+Can be configured in the yml files, config blocks, or macros-tests/generic or dbt_project yml file.
+
+*Test configuration at the project level*
+On `dbt_proyect.yml`
+```yml
+tests:
+  project_name:
+    +severity: warn
+    +store_failures: true
+```
+
+## *Advanced Deployment with dbt Cloud* course
+
+Environment: dbt version + git branch + data location
+  - Development: 
+    - dbt version: env. setting (v1.3)
+    - git: IDE interface (feat/scores)
+    - data: profile setting (dbt_luis)
+  - Deployment:
+    - dbt version: env. setting (v1.3)
+    - git: env. setting (main)
+    - data: env. setting (company)
+    - +Jobs -> sequence of dbt commands / scheduled or triggered
+      - Includes Run Results
+
+### *Deployment architecture*
+
+- Direct Promotion - One Trunk
+  - New feature branches from the main branch
+  - Each feature branch open a pull request to main branch
+- Indirect Promotion - Many Trunk
+  - New feature branches from an intermediate branch
+  - Each feature branch open a pull request to the intermediate branch
+  - Last PR from intermediate branch to main branch
+
+### *Direct Promotion*
+
+- Go to Deploy/Environments
+- Create a New Environment
+  - Create a new job
+    - Select the environment
+    - Target Name: prod
+    - Add the dbt commands
+    - Triggers
+
+### *Indirect Promotion*
+- Go to Deploy/Environments
+- Create a New Environment
+  - Check only run on a custom branch
+    - Put the intermediate branch
+    - Add the proper schema for this intermediate branch
+  - Create a new job
+    - Select the environment
+    - Target Name: prod --> this is useful for the parameters you may in your project
+    - Add the dbt commands
+    - Triggers
+
+In the end, you may have 3 environments:
+- Development
+- Production
+- QA (the intermediate "branch")
+
+### *DAG*
+
+The entire lineage of our project. We can see the following
+- elements by type: models, seeds, snapshots, sources, tests, analyses, exposures, etc.
+- elements by packages
+- elements by tags
+- `--select`: 
+  - `+model`: the model and its predecessors
+  - `model+`: the model and its successors
+  - `+model1+ +model2`: make 2 selects once
+  - `+model1+,+model2`: see the share parents
+- `--exclude`: 
+  - `+model`: the model and its predecessors
+  - `model+`: the model and its successors
+
+### *dbt build*
+- run and test all nodes in DAG order
+- also includes snapshots and seeds
+- skip nodes downstream of a test failure
+
+### *Job types*
+- Standard job: build the entire project, leverage incremental logic, typically daily
+- Full refresh: build entire project, rebuild incremental nodes from scratch, typically weekly
+- Time sensitive: build a subset of your DAG, helpful to refresh models for specific part of the business
+- Fresh build (1.1+): check if sources is updated
+  `dbt build --select source_status:fresher+`
+
+### *Triggering Jobs*
+
+- On schedule
+  - CRON:
+    - * * * * * (minute hour day month day-week-0to7)
+    - "*"" any value
+    - "," value list separator
+    - "-" range of values
+    - "-" step values
+
+  ```
+    */30 6-23 * * 1-5 
+    Every 30 minutes for hours between 6 am and 11pm UTC from Monday to Friday
+
+    15,45 0-4,8-23 * * 0 (sunday, running from midnight to 4 am only minute 15 and 45 and then from 8 am to 11 pm)
+  ```
+
+- Via Webhooks
+  Run on Pull Requests
+- dbt Cloud API
+  - Get the API token from Account Settings
+  - Get the API token from Service Tokens (you can set the permissions).
+  ```bash
+    POST https://cloud.getdbt.com/api/v2/accounts/{{account_id}}/jobs/{{job_id}}/run
+
+    Header: {"Authorization":"Token <your token>"}
+    
+    Body: {"cause":"Triggered via API"}
+
+  ```
+
+### *Review Job Run*
+- Details like Run Timing, Model Timing, artifacts (files generated by dbt like json files, compiled sql)
+- Commands ran by dbt
+
+### *Continuous Integration*
+
+Basically we are creating a Job (from a new environment) that run on Pull Request (CI purpose)
+
+- Basic CI:
+  - Run on Pull Request
+  - Execute dbt run
+  - Execute dbt test
+- Slim CI:
+  - Run on Pull Request and manage only the changes
+  - dbt run -s state:modified+
+  - dbt test -s state:modified+
+
+### *Custom Environment*
+
+- *Target Name*: if no target name provided, it will be set with "default"
+
+dbt normally joins the target schema and the custom schema to create a new schema for our models sceham, however we can customize it. To do that we need to overwrite the `generate_schema_name` macro.
+
+```sql
+{% macro generate_schema_name(custom_schema_name, node) -%}
+
+  {%- set default_schema = target.schema -%}
+  {%- if custom_schema_name is none -%}
+
+      {{ default_schema }}
+
+  -- If not env_var('DBT_MY_ENV','') set in the variables group from the environment,
+  -- We can use target.name instead
+  {%- elif env_var('DBT_MY_ENV','') == 'prod' -%}
+
+      {{ custom_schema_name | trim }}
+
+
+  {%- else -%}
+
+      {{ default_schema }}_{{ custom_schema_name | trim }}
+
+  {%- endif -%}
+
+{%- endmacro %}
+```
+
+---
+## Additional Concepts Relevant for the Certification
+
+## a. *Metrics*
+
+Link: *[dbt Metrics](https://docs.getdbt.com/docs/build/metrics)*
+
+It's basically an aggregation over a table that supports multiple dimensions. They will appear as nodes in the DAG diagram y we can create them by using YAML files.
+
+```yml
+version 2:
+
+models: 
+  ...
+
+metrics:
+  - name: my_metric
+    label: Information about the metric
+    description: "My Awesome Metric!"
+
+    calculation_period: count # you can use others like, count_distinct, derived, etc.
+    expression: column_name
+    
+    # We can use derived for our custom calculations
+    # calculation_period: derived
+    expression: "{{ metric('column_1') }} / {{ metric('column_2') }}"
+
+    dimensions:
+     - dimension_1
+    
+    ...
+```
+
+Querying a metric (requires `dbt_metrics` package)
+```sql
+select *
+from {{
+  metrics.calculate(
+    metric('my_metric'),
+    grain = 'month',
+    dimensions = ['dimen_1','dimen_2']
+  )
+}}
+```
+
+## b. *Hooks and Operations*
+
+Link: *[Hooks and Operations](https://docs.getdbt.com/docs/build/hooks-operations)*
+
+*Hooks*
+
+- `pre-hook`: executed *before* a model/seed/snapshot is built.
+- `post-hook`: executed *after* a model/seed/snapshot is built.
+- `on-run-start`: executed at the *start* of `dbt run/seed/snapshot`.
+- `on-run-end`: executed at the *end* of `dbt run/seed/snapshot`.
+
+```sql
+-- This is a model sql file
+{{
+  config(
+    post_hook = [
+      "alter table {{ this }} ..."
+    ]
+  )
+}}
+```
+
+*Operations*
+
+Macros that can run using `run-operation` commnad. A very convenient way to run macros without running a model.
+
+```bash
+dbt run-operation my_macro --args '{arg1: value1}'
+```
+
+## c. *Python models*
+
+Supported in dbt v1.3.
+
+Link: *[Python models](https://docs.getdbt.com/docs/build/python-models)*
+
+Characteristics:
+- Include an adapter for a data platform that supports fully featured Python runtime (the python model is rexecuted remotely by the data platform).
+- Python models use DataFrames. Instead of a final `select` the model retuns a final DataFrame (lazy evaluation).
+- We need to define a function named `model(dbt, session)`. In Snowflake, this model can return a Snowpark or pandas DataFrame.
+
+```python
+def model(dbt, session):
+
+  dbt.config(
+    materialized="table",
+    packages = ["numpy==1.23.1", "scikit-learn"]
+    )
+
+  df_model_1 = dbt.ref("upstream_model_name")
+
+  df_model_2 = dbt.source("upstream_source_name","table_name")
+
+```
+
+## d. *Connection profiles*
+
+Link: *[Connection profiles](https://docs.getdbt.com/docs/core/connect-data-platform/connection-profiles#understanding-threads)*
+
+A profile consists of **targets**. Each target specify the type of warehouse, the credentials, and other configurations.
+
+- Profile name: should be the same one like in `dbt_projects.yml`
+- target: default target
+  - type
+  - warehouse credentials
+  - schema
+  - threads
+
+*To validate your warehouse credentials*
+```bash
+dbt debug
+```
+
+*How to use a target in your dbt command*
+```bash
+dbt run --target
+```
+
+The number of threads represents the maximum number of paths through the graph dbt may work on at once. Increasing the number of threads can minimize the run time of your projects (default is 4).
+
+*Other ways to use the profiles*
+
+```bash
+dbt run --profiles-dir path/to/directory
+```
+or by overriding the environmental variable
+```bash
+$ export DBT_PROFILES_DIR=path/to/directory
+```
+or by updating the file from `~/.dbt/` location.
+
+## e. *Using aliases*
+
+Link: [Using Aliases](https://docs.getdbt.com/docs/build/custom-aliases)
+
+- Remember if there is an ambiguity, dbt will check it and present with an error. To solve the issue, one way is to use custom schema
+
+## *A good cheatsheet for dbt commands*
+
+I found this link very useful!
+https://medium.com/indiciumtech/17-dbt-commands-you-should-start-using-today-581998dbf8f0
+
+Also, we have the dbt documentation
+https://docs.getdbt.com/reference/node-selection/methods#the-source_status-method
