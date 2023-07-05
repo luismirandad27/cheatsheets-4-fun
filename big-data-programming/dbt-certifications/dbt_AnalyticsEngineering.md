@@ -1135,6 +1135,46 @@ Link: [Using Aliases](https://docs.getdbt.com/docs/build/custom-aliases)
 
 - Remember if there is an ambiguity, dbt will check it and present with an error. To solve the issue, one way is to use custom schema
 
+## f. *Project Variables*
+
+Link: [Project Variables](https://docs.getdbt.com/docs/build/project-variables)
+
+We can define in 2 ways: in `dbt_project.yml` or command line
+
+In `dbt_project.yml` file
+```yml
+name: my_dbt_project
+version: 1.0.0
+
+config-version: 2
+
+vars:
+  # The `start_date` variable will be accessible in all resources
+  start_date: '2016-06-01'
+
+  # The `platforms` variable is only accessible to resources in the my_dbt_project project
+  my_dbt_project:
+    platforms: ['web', 'mobile']
+
+  # The `app_ids` variable is only accessible to resources in the snowplow package
+  snowplow:
+    app_ids: ['marketing', 'app', 'landing-page']
+
+```
+
+In command line:
+```bash
+dbt run --vars '{"key":"value"}'
+```
+
+*Review the variable precedence*
+
+## g. Environment Variables
+
+Link: [Environment Variables](https://docs.getdbt.com/docs/build/environment-variables)
+
+
+
 ## *A good cheatsheet for dbt commands*
 
 I found this link very useful!
