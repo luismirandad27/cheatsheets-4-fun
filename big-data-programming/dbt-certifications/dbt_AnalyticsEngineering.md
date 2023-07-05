@@ -1173,7 +1173,14 @@ dbt run --vars '{"key":"value"}'
 
 Link: [Environment Variables](https://docs.getdbt.com/docs/build/environment-variables)
 
+Environment variables in dbt Cloud must be prefixed with either `DBT_` or `DBT_ENV_SECRET_`
 
+Precedence order (lowest to highest):
+
+1. the optional default argument supplied to the `env_var` Jinja function in code
+2. a project-wide default value, which can be overridden at
+3. the environment level, which can in turn be overridden again at
+4. the job level (job override) or in the IDE for an individual dev (personal override).
 
 ## *A good cheatsheet for dbt commands*
 
